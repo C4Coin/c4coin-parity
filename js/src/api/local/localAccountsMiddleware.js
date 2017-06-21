@@ -188,7 +188,7 @@ export default class LocalAccountsMiddleware extends Middleware {
 
     register('parity_wsUrl', () => {
       // This is a hack, will be replaced by a `hostname` setting on the node itself
-      return `${window.location.hostname}:8546`;
+      return `ws-${window.location.hostname}`;
     });
 
     register('parity_dappsUrl', () => {

@@ -267,6 +267,9 @@ impl<C, M, S: ?Sized, U> Parity for ParityClient<C, M, S, U> where
 	}
 
 	fn phrase_to_address(&self, phrase: String) -> Result<H160, Error> {
+		// Check for public node
+		self.account_provider()?;
+
 		Ok(Brain::new(phrase).generate().unwrap().address().into())
 	}
 
