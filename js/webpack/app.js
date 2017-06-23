@@ -138,14 +138,20 @@ module.exports = {
 
   resolve: {
     alias: {
+      '~/api/local': path.resolve(__dirname, '../src/api/local/localAccountsMiddleware.js'),
       '~': path.resolve(__dirname, '../src'),
-      'keythereum': path.resolve(__dirname, '../node_modules/keythereum/dist/keythereum')
+      'keythereum': path.resolve(__dirname, '../node_modules/keythereum/dist/keythereum'),
+      'vertx': 'empty-module'
     },
     modules: [
       path.join(__dirname, '../node_modules')
     ],
     extensions: ['.json', '.js', '.jsx'],
     unsafeCache: true
+  },
+
+  node: {
+    fs: 'empty'
   },
 
   plugins: (function () {
