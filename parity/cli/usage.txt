@@ -199,6 +199,7 @@ API and Console Options:
                                    is additional security against some attack
                                    vectors. Special options: "all", "none",
                                    (default: {flag_ws_hosts}).
+  --ws-host HOST                   Public. (default: {flag_ws_host})
 
   --no-ipc                         Disable JSON-RPC over IPC service. (default: {flag_no_ipc})
   --ipc-path PATH                  Specify custom path for JSON-RPC over IPC service

@@ -27,6 +27,7 @@ reserved_peers = "./path/to/reserved_peers"
 [websockets]
 disable = true
 origins = ["none"]
+host = "default"
 
 [rpc]
 disable = true

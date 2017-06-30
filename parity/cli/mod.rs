@@ -196,6 +196,8 @@ usage! {
 			or |c: &Config| otry!(c.websockets).origins.as_ref().map(|vec| vec.join(",")),
 		flag_ws_hosts: String = "none",
 			or |c: &Config| otry!(c.websockets).hosts.as_ref().map(|vec| vec.join(",")),
+		flag_ws_host: String = "default",
+			or |c: &Config| otry!(c.websockets).host.clone(),
 
 		// IPC
 		flag_no_ipc: bool = false,
@@ -477,6 +479,7 @@ struct Ws {
 	apis: Option<Vec<String>>,
 	origins: Option<Vec<String>>,
 	hosts: Option<Vec<String>>,
+	host: Option<String>,
 }
 
 #[derive(Default, Debug, PartialEq, RustcDecodable)]
@@ -755,6 +758,7 @@ mod tests {
 			flag_ws_apis: "web3,eth,net,parity,traces,rpc,secretstore".into(),
 			flag_ws_origins: "none".into(),
 			flag_ws_hosts: "none".into(),
+			flag_ws_host: "default".into(),
 
 			// IPC
 			flag_no_ipc: false,

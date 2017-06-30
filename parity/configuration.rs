@@ -770,6 +770,13 @@ impl Configuration {
 		self.hosts(&self.args.flag_jsonrpc_hosts, &self.rpc_interface())
 	}
 
+	fn ws_host(&self) -> Option<String> {
+		match self.args.flag_ws_host.as_str() {
+			"default" => None,
+			host => Some(host.into())
+		}
+	}
+
 	fn ws_hosts(&self) -> Option<Vec<String>> {
 		if self.args.flag_ui_no_validation {
 			return None;
@@ -839,6 +846,7 @@ impl Configuration {
 			port: self.args.flag_ports_shift + self.args.flag_ws_port,
 			apis: self.args.flag_ws_apis.parse()?,
 			hosts: self.ws_hosts(),
+			host: self.ws_host(),
 			origins: self.ws_origins(),
 			signer_path: self.directories().signer.into(),
 			support_token_api: !self.args.flag_public_node,
