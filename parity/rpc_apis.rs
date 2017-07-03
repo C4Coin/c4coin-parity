@@ -209,6 +209,7 @@ pub struct FullDependencies {
 	pub dapps_service: Option<Arc<DappsService>>,
 	pub dapps_address: Option<(String, u16)>,
 	pub ws_address: Option<(String, u16)>,
+	pub ws_url: Option<String>,
 	pub fetch: FetchClient,
 	pub remote: parity_reactor::Remote,
 }
@@ -296,6 +297,7 @@ impl FullDependencies {
 						signer,
 						self.dapps_address.clone(),
 						self.ws_address.clone(),
+						self.ws_url.clone(),
 					).to_delegate());
 
 					if !for_generic_pubsub {

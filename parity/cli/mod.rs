@@ -196,7 +196,7 @@ usage! {
 			or |c: &Config| otry!(c.websockets).origins.as_ref().map(|vec| vec.join(",")),
 		flag_ws_hosts: String = "none",
 			or |c: &Config| otry!(c.websockets).hosts.as_ref().map(|vec| vec.join(",")),
-		flag_ws_host: String = "default",
+		flag_ws_hostname: String = "none",
 			or |c: &Config| otry!(c.websockets).host.clone(),
 
 		// IPC
@@ -758,7 +758,7 @@ mod tests {
 			flag_ws_apis: "web3,eth,net,parity,traces,rpc,secretstore".into(),
 			flag_ws_origins: "none".into(),
 			flag_ws_hosts: "none".into(),
-			flag_ws_host: "default".into(),
+			flag_ws_hostname: "none".into(),
 
 			// IPC
 			flag_no_ipc: false,

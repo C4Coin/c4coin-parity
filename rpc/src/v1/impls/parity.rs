@@ -69,6 +69,7 @@ pub struct ParityClient<C, M, S: ?Sized, U> where
 	signer: Option<Arc<SignerService>>,
 	dapps_address: Option<(String, u16)>,
 	ws_address: Option<(String, u16)>,
+	ws_url: Option<String>,
 	eip86_transition: u64,
 }
 
@@ -91,6 +92,7 @@ impl<C, M, S: ?Sized, U> ParityClient<C, M, S, U> where
 		signer: Option<Arc<SignerService>>,
 		dapps_address: Option<(String, u16)>,
 		ws_address: Option<(String, u16)>,
+		ws_url: Option<String>,
 	) -> Self {
 		ParityClient {
 			client: client.clone(),
@@ -99,11 +101,12 @@ impl<C, M, S: ?Sized, U> ParityClient<C, M, S, U> where
 			updater: updater.clone(),
 			net: net.clone(),
 			accounts: store.clone(),
-			logger: logger,
-			settings: settings,
-			signer: signer,
-			dapps_address: dapps_address,
-			ws_address: ws_address,
+			logger,
+			settings,
+			signer,
+			dapps_address,
+			ws_address,
+			ws_url,
 			eip86_transition: client.eip86_transition(),
 		}
 	}
@@ -327,8 +330,10 @@ impl<C, M, S: ?Sized, U> Parity for ParityClient<C, M, S, U> where
 	}
 
 	fn ws_url(&self) -> Result<String, Error> {
-		helpers::to_url(&self.ws_address)
-			.ok_or_else(|| errors::ws_disabled())
+		match self.ws_url {
+			Some(ref ws_url) => Ok(ws_url.clone()),
+			None => helpers::to_url(&self.ws_address).ok_or_else(|| errors::ws_disabled()),
+		}
 	}
 
 	fn next_nonce(&self, address: H160) -> BoxFuture<U256, Error> {

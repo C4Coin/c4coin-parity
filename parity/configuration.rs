@@ -770,9 +770,9 @@ impl Configuration {
 		self.hosts(&self.args.flag_jsonrpc_hosts, &self.rpc_interface())
 	}
 
-	fn ws_host(&self) -> Option<String> {
-		match self.args.flag_ws_host.as_str() {
-			"default" => None,
+	fn ws_url(&self) -> Option<String> {
+		match self.args.flag_ws_hostname.as_str() {
+			"none" => None,
 			host => Some(host.into())
 		}
 	}
@@ -846,7 +846,7 @@ impl Configuration {
 			port: self.args.flag_ports_shift + self.args.flag_ws_port,
 			apis: self.args.flag_ws_apis.parse()?,
 			hosts: self.ws_hosts(),
-			host: self.ws_host(),
+			url: self.ws_url(),
 			origins: self.ws_origins(),
 			signer_path: self.directories().signer.into(),
 			support_token_api: !self.args.flag_public_node,

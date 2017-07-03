@@ -199,7 +199,10 @@ API and Console Options:
                                    is additional security against some attack
                                    vectors. Special options: "all", "none",
                                    (default: {flag_ws_hosts}).
-  --ws-host HOST                   Public. (default: {flag_ws_host})
+  --ws-hostname HOST               Specify public hostname to which the UI should connect, if
+  								   different from IP:PORT. This can be useful if your node is
+  								   behind a proxy server or on a public domain.
+  								   Special option: "none" (default: {flag_ws_hostname})
 
   --no-ipc                         Disable JSON-RPC over IPC service. (default: {flag_no_ipc})
   --ipc-path PATH                  Specify custom path for JSON-RPC over IPC service

@@ -644,6 +644,7 @@ pub fn execute(cmd: RunCmd, can_restart: bool, logger: Arc<RotatingLogger>) -> R
 		dapps_service: dapps_service,
 		dapps_address: cmd.dapps_conf.address(cmd.http_conf.address()),
 		ws_address: cmd.ws_conf.address(),
+		ws_url: cmd.ws_conf.url.clone(),
 		fetch: fetch.clone(),
 		remote: event_loop.remote(),
 	});
