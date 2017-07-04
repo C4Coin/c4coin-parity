@@ -142,7 +142,7 @@ impl<C: MiningBlockChainClient, M: MinerService> Dispatcher for FullDispatcher<C
 				gas: filled.gas,
 				gas_price: filled.gas_price,
 				value: filled.value,
-				data: filled.data,
+				data: filled.data.into(),
 			};
 
 			if accounts.is_hardware_address(address) {
@@ -368,7 +368,7 @@ impl Dispatcher for LightDispatcher {
 				gas: filled.gas,
 				gas_price: filled.gas_price,
 				value: filled.value,
-				data: filled.data,
+				data: filled.data.into(),
 			};
 
 			if accounts.is_hardware_address(address) {

@@ -29,7 +29,7 @@ pub struct PodAccount {
 	/// The nonce of the account.
 	pub nonce: U256,
 	/// The code of the account or `None` in the special case that it is unknown.
-	pub code: Option<Bytes>,
+	pub code: Option<ImmutableBytes>,
 	/// The storage of the account.
 	pub storage: BTreeMap<H256, H256>,
 }
@@ -37,7 +37,7 @@ pub struct PodAccount {
 impl PodAccount {
 	/// Construct new object.
 	#[cfg(test)]
-	pub fn new(balance: U256, nonce: U256, code: Bytes, storage: BTreeMap<H256, H256>) -> PodAccount {
+	pub fn new(balance: U256, nonce: U256, code: ImmutableBytes, storage: BTreeMap<H256, H256>) -> PodAccount {
 		PodAccount { balance: balance, nonce: nonce, code: Some(code), storage: storage }
 	}
 
@@ -48,7 +48,7 @@ impl PodAccount {
 			balance: *acc.balance(),
 			nonce: *acc.nonce(),
 			storage: acc.storage_changes().iter().fold(BTreeMap::new(), |mut m, (k, v)| {m.insert(k.clone(), v.clone()); m}),
-			code: acc.code().map(|x| x.to_vec()),
+			code: acc.code(),
 		}
 	}
 
@@ -58,7 +58,7 @@ impl PodAccount {
 		stream.append(&self.nonce);
 		stream.append(&self.balance);
 		stream.append(&sec_trie_root(self.storage.iter().map(|(k, v)| (k.to_vec(), rlp::encode(&U256::from(&**v)).to_vec())).collect()));
-		stream.append(&self.code.as_ref().unwrap_or(&vec![]).sha3());
+		stream.append(&self.code.as_ref().unwrap_or(&ImmutableBytes::new()).sha3());
 		stream.out()
 	}
 
@@ -80,10 +80,11 @@ impl PodAccount {
 
 impl From<ethjson::blockchain::Account> for PodAccount {
 	fn from(a: ethjson::blockchain::Account) -> Self {
+		let code: Vec<u8> = a.code.into();
 		PodAccount {
 			balance: a.balance.into(),
 			nonce: a.nonce.into(),
-			code: Some(a.code.into()),
+			code: Some(code.into()),
 			storage: a.storage.into_iter().map(|(key, value)| {
 				let key: U256 = key.into();
 				let value: U256 = value.into();
@@ -95,10 +96,11 @@ impl From<ethjson::blockchain::Account> for PodAccount {
 
 impl From<ethjson::spec::Account> for PodAccount {
 	fn from(a: ethjson::spec::Account) -> Self {
+		let code: Option<Vec<u8>> = a.code.map(Into::into);
 		PodAccount {
 			balance: a.balance.map_or_else(U256::zero, Into::into),
 			nonce: a.nonce.map_or_else(U256::zero, Into::into),
-			code: Some(a.code.map_or_else(Vec::new, Into::into)),
+			code: Some(code.map_or_else(ImmutableBytes::new, Into::into)),
 			storage: a.storage.map_or_else(BTreeMap::new, |s| s.into_iter().map(|(key, value)| {
 				let key: U256 = key.into();
 				let value: U256 = value.into();
@@ -127,13 +129,17 @@ pub fn diff_pod(pre: Option<&PodAccount>, post: Option<&PodAccount>) -> Option<A
 		(None, Some(x)) => Some(AccountDiff {
 			balance: Diff::Born(x.balance),
 			nonce: Diff::Born(x.nonce),
-			code: Diff::Born(x.code.as_ref().expect("account is newly created; newly created accounts must be given code; all caches should remain in place; qed").clone()),
+			code: Diff::Born(x.code.clone()
+				.expect("account is newly created; newly created accounts must be given code; all caches should remain in place; qed")
+			),
 			storage: x.storage.iter().map(|(k, v)| (k.clone(), Diff::Born(v.clone()))).collect(),
 		}),
 		(Some(x), None) => Some(AccountDiff {
 			balance: Diff::Died(x.balance),
 			nonce: Diff::Died(x.nonce),
-			code: Diff::Died(x.code.as_ref().expect("account is deleted; only way to delete account is running SUICIDE; account must have had own code cached to make operation; all caches should remain in place; qed").clone()),
+			code: Diff::Died(x.code.clone()
+				.expect("account is deleted; only way to delete account is running SUICIDE; account must have had own code cached to make operation; all caches should remain in place; qed")
+			),
 			storage: x.storage.iter().map(|(k, v)| (k.clone(), Diff::Died(v.clone()))).collect(),
 		}),
 		(Some(pre), Some(post)) => {

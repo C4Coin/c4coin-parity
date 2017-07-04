@@ -20,6 +20,7 @@ use std::fmt;
 use rustc_serialize::hex::ToHex;
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 use serde::de::{Error, Visitor};
+use util::ImmutableBytes;
 use util::common::FromHex;
 
 /// Wrapper structure around vector of bytes.
@@ -40,6 +41,18 @@ impl Bytes {
 impl From<Vec<u8>> for Bytes {
 	fn from(bytes: Vec<u8>) -> Bytes {
 		Bytes(bytes)
+	}
+}
+
+impl From<ImmutableBytes> for Bytes {
+	fn from(bytes: ImmutableBytes) -> Bytes {
+		Bytes(bytes.to_vec())
+	}
+}
+
+impl<'a> From<&'a ImmutableBytes> for Bytes {
+	fn from(bytes: &'a ImmutableBytes) -> Bytes {
+		Bytes(bytes.to_vec())
 	}
 }
 

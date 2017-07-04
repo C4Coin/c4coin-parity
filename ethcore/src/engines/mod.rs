@@ -435,7 +435,7 @@ pub mod common {
 			value: ActionValue::Transfer(0.into()),
 			code: state.code(&contract_address)?,
 			code_hash: state.code_hash(&contract_address)?,
-			data: data,
+			data: data.map(Into::into),
 			call_type: CallType::Call,
 		};
 		let mut ex = Executive::new(&mut state, &env_info, engine);
@@ -452,7 +452,10 @@ pub mod common {
 	pub fn push_last_hash<E: Engine + ?Sized>(block: &mut ExecutedBlock, last_hashes: Arc<LastHashes>, engine: &E, hash: &H256) -> Result<(), Error> {
 		if block.fields().header.number() == engine.params().eip210_transition {
 			let state = block.fields_mut().state;
-			state.init_code(&engine.params().eip210_contract_address, engine.params().eip210_contract_code.clone())?;
+			state.init_code(
+				&engine.params().eip210_contract_address,
+				engine.params().eip210_contract_code.clone().into()
+			)?;
 		}
 		if block.fields().header.number() >= engine.params().eip210_transition {
 			let _ = execute_as_system(

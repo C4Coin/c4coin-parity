@@ -98,7 +98,7 @@ pub trait Ext {
 	) -> MessageCallResult;
 
 	/// Returns code at given address
-	fn extcode(&self, address: &Address) -> evm::Result<Arc<Bytes>>;
+	fn extcode(&self, address: &Address) -> evm::Result<ImmutableBytes>;
 
 	/// Returns code size at given address
 	fn extcodesize(&self, address: &Address) -> evm::Result<usize>;

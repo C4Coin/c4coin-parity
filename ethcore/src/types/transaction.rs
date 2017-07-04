@@ -19,7 +19,7 @@
 use std::ops::Deref;
 use rlp::*;
 use util::sha3::Hashable;
-use util::{H256, Address, U256, Bytes, HeapSizeOf};
+use util::{H256, Address, U256, HeapSizeOf, ImmutableBytes};
 use ethkey::{Signature, Secret, Public, recover, public_to_address, Error as EthkeyError};
 use error::*;
 use evm::Schedule;
@@ -83,7 +83,7 @@ pub struct Transaction {
 	/// Transfered value.
 	pub value: U256,
 	/// Transaction data.
-	pub data: Bytes,
+	pub data: ImmutableBytes,
 }
 
 impl Transaction {
@@ -117,6 +117,7 @@ impl From<ethjson::state::Transaction> for SignedTransaction {
 	fn from(t: ethjson::state::Transaction) -> Self {
 		let to: Option<ethjson::hash::Address> = t.to.into();
 		let secret = t.secret.map(|s| Secret::from_slice(&s.0));
+		let data: Vec<u8> = t.data.into();
 		let tx = Transaction {
 			nonce: t.nonce.into(),
 			gas_price: t.gas_price.into(),
@@ -126,7 +127,7 @@ impl From<ethjson::state::Transaction> for SignedTransaction {
 				None => Action::Create
 			},
 			value: t.value.into(),
-			data: t.data.into(),
+			data: data.into(),
 		};
 		match secret {
 			Some(s) => tx.sign(&s, None),
@@ -138,6 +139,7 @@ impl From<ethjson::state::Transaction> for SignedTransaction {
 impl From<ethjson::transaction::Transaction> for UnverifiedTransaction {
 	fn from(t: ethjson::transaction::Transaction) -> Self {
 		let to: Option<ethjson::hash::Address> = t.to.into();
+		let data: Vec<u8> = t.data.into();
 		UnverifiedTransaction {
 			unsigned: Transaction {
 				nonce: t.nonce.into(),
@@ -148,7 +150,7 @@ impl From<ethjson::transaction::Transaction> for UnverifiedTransaction {
 					None => Action::Create
 				},
 				value: t.value.into(),
-				data: t.data.into(),
+				data: data.into(),
 			},
 			r: t.r.into(),
 			s: t.s.into(),

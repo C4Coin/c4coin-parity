@@ -22,6 +22,8 @@
 use std::fmt;
 use std::cmp::min;
 use std::ops::{Deref, DerefMut};
+use bytes_crate as bytes;
+use rlp;
 
 /// Slice pretty print helper
 pub struct PrettySlice<'a> (&'a [u8]);
@@ -120,6 +122,67 @@ impl <'a> DerefMut for BytesRef<'a> {
 
 /// Vector of bytes.
 pub type Bytes = Vec<u8>;
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+/// Immutable vector of bytes
+pub struct ImmutableBytes(bytes::Bytes);
+
+impl ImmutableBytes {
+	/// Creates a new empty `ImmutableBytes`.
+	pub fn new() -> Self {
+		ImmutableBytes(bytes::Bytes::new())
+	}
+
+	/// Creates a new `ImmutableBytes`from a static slice.
+	pub fn from_static(data: &'static [u8]) -> Self {
+		ImmutableBytes(bytes::Bytes::from_static(data))
+	}
+}
+
+impl Default for ImmutableBytes {
+	fn default() -> Self {
+		ImmutableBytes::new()
+	}
+}
+
+impl ::std::ops::Deref for ImmutableBytes {
+	type Target = [u8];
+
+	fn deref(&self) -> &Self::Target {
+		&*self.0
+	}
+}
+
+impl AsRef<[u8]> for ImmutableBytes {
+	fn as_ref(&self) -> &[u8] {
+		&*self.0
+	}
+}
+
+impl<T: Into<bytes::Bytes>> From<T> for ImmutableBytes {
+	fn from(t: T) -> Self {
+		ImmutableBytes(t.into())
+	}
+}
+
+impl ::HeapSizeOf for ImmutableBytes {
+	fn heap_size_of_children(&self) -> usize {
+		self.0.len()
+	}
+}
+
+impl rlp::Encodable for ImmutableBytes {
+	fn rlp_append(&self, s: &mut rlp::RlpStream) {
+		s.encoder().encode_value(self);
+	}
+}
+impl rlp::Decodable for ImmutableBytes {
+	fn decode(rlp: &rlp::UntrustedRlp) -> Result<Self, rlp::DecoderError> {
+		rlp.decoder().decode_value(|bytes| {
+			Ok(bytes.into())
+		})
+	}
+}
 
 #[cfg(test)]
 mod tests {

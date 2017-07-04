@@ -120,7 +120,7 @@ impl From<ActionParams> for Call {
 			to: p.address,
 			value: p.value.value(),
 			gas: p.gas,
-			input: p.data.unwrap_or_else(Vec::new),
+			input: p.data.map_or_else(Bytes::new, |data| data.to_vec()),
 			call_type: p.call_type,
 		}
 	}
@@ -182,7 +182,7 @@ impl From<ActionParams> for Create {
 			from: p.sender,
 			value: p.value.value(),
 			gas: p.gas,
-			init: p.code.map_or_else(Vec::new, |c| (*c).clone()),
+			init: p.code.map_or_else(Bytes::new, |c| c.to_vec()),
 		}
 	}
 }

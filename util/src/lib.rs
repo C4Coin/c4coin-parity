@@ -87,6 +87,7 @@
 //!   cargo build --release
 //!   ```
 
+extern crate bytes as bytes_crate;
 extern crate rustc_serialize;
 extern crate rand;
 extern crate rocksdb;

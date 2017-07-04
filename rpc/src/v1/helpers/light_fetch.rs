@@ -201,7 +201,7 @@ impl LightFetch {
 					gas: gas,
 					gas_price: gas_price,
 					value: value,
-					data: data,
+					data: data.into(),
 				}.fake_sign(from)),
 				None => Err(errors::unknown_block()),
 			})

@@ -1038,7 +1038,7 @@ impl Client {
 			gas: U256::from(50_000_000),
 			gas_price: U256::default(),
 			value: U256::default(),
-			data: data,
+			data: data.into(),
 		}.fake_sign(from)
 	}
 }
@@ -1296,7 +1296,7 @@ impl BlockChainClient for Client {
 	}
 
 	fn code(&self, address: &Address, id: BlockId) -> Option<Option<Bytes>> {
-		self.state_at(id).and_then(|s| s.code(address).ok()).map(|c| c.map(|c| (&*c).clone()))
+		self.state_at(id).and_then(|s| s.code(address).ok()).map(|c| c.map(|c| c.to_vec()))
 	}
 
 	fn balance(&self, address: &Address, id: BlockId) -> Option<U256> {
@@ -1631,7 +1631,7 @@ impl BlockChainClient for Client {
 			gas: self.miner.gas_floor_target(),
 			gas_price: self.miner.sensible_gas_price(),
 			value: U256::zero(),
-			data: data,
+			data: data.into(),
 		};
 		let network_id = self.engine.signing_network_id(&self.latest_env_info());
 		let signature = self.engine.sign(transaction.hash(network_id))?;

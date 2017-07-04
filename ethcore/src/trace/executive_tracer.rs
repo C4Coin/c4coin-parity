@@ -100,7 +100,7 @@ impl Tracer for ExecutiveTracer {
 			action: Action::Call(call.expect("self.prepare_trace_call().is_some(): so we must be tracing: qed")),
 			result: Res::Call(CallResult {
 				gas_used: gas_used,
-				output: output.expect("self.prepare_trace_output().is_some(): so we must be tracing: qed")
+				output: output.expect("self.prepare_trace_output().is_some(): so we must be tracing: qed").to_vec()
 			}),
 		};
 		debug!(target: "trace", "Traced call {:?}", trace);

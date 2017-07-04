@@ -158,7 +158,7 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 				gas_price: 0.into(),
 				code: code,
 				code_hash: code_hash,
-				data: Some(H256::from(number).to_vec()),
+				data: Some(H256::from(number).to_vec().into()),
 				call_type: CallType::Call,
 			};
 
@@ -185,6 +185,7 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 		}
 	}
 
+	// TODO [ToDr] Code should be `Bytes`
 	fn create(&mut self, gas: &U256, value: &U256, code: &[u8], address_scheme: CreateContractAddress) -> ContractCreateResult {
 		// create new contract address
 		let code_hash = code.sha3();
@@ -205,7 +206,7 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 			gas: *gas,
 			gas_price: self.origin_info.gas_price,
 			value: ActionValue::Transfer(*value),
-			code: Some(Arc::new(code.to_vec())),
+			code: Some(code.to_vec().into()),
 			code_hash: code_hash,
 			data: None,
 			call_type: CallType::None,
@@ -229,6 +230,7 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 		}
 	}
 
+	// TODO [ToDr] USe ImmutableBytes
 	fn call(&mut self,
 		gas: &U256,
 		sender_address: &Address,
@@ -259,7 +261,7 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 			gas_price: self.origin_info.gas_price,
 			code: code,
 			code_hash: code_hash,
-			data: Some(data.to_vec()),
+			data: Some(data.to_vec().into()),
 			call_type: call_type,
 		};
 
@@ -275,8 +277,8 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 		}
 	}
 
-	fn extcode(&self, address: &Address) -> evm::Result<Arc<Bytes>> {
-		Ok(self.state.code(address)?.unwrap_or_else(|| Arc::new(vec![])))
+	fn extcode(&self, address: &Address) -> evm::Result<ImmutableBytes> {
+		Ok(self.state.code(address)?.unwrap_or_else(ImmutableBytes::new))
 	}
 
 	fn extcodesize(&self, address: &Address) -> evm::Result<usize> {
@@ -315,7 +317,8 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 
 				handle_copy(copy);
 
-				self.state.init_code(&self.origin_info.address, data.to_vec())?;
+				// TODO [ToDr] Dont allocate.
+				self.state.init_code(&self.origin_info.address, data.to_vec().into())?;
 				Ok(*gas - return_cost)
 			}
 		}

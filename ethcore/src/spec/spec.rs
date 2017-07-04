@@ -267,7 +267,7 @@ impl Spec {
 					gas: U256::max_value(),
 					gas_price: Default::default(),
 					value: ActionValue::Transfer(Default::default()),
-					code: Some(Arc::new(constructor.clone())),
+					code: Some(constructor.clone().into()),
 					data: None,
 					call_type: CallType::None,
 				};

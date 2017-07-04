@@ -23,7 +23,7 @@ use util::hash::{H256};
 use util::hashdb::HashDB;
 use state::{self, Account};
 use header::BlockNumber;
-use util::{Arc, Address, DBTransaction, UtilError, Mutex, Hashable};
+use util::{Arc, Address, DBTransaction, UtilError, Mutex, Hashable, ImmutableBytes};
 use bloom_journal::{Bloom, BloomJournal};
 use db::COL_ACCOUNT_BLOOM;
 use byteorder::{LittleEndian, ByteOrder};
@@ -95,7 +95,7 @@ pub struct StateDB {
 	/// Shared canonical state cache.
 	account_cache: Arc<Mutex<AccountCache>>,
 	/// DB Code cache. Maps code hashes to shared bytes.
-	code_cache: Arc<Mutex<MemoryLruCache<H256, Arc<Vec<u8>>>>>,
+	code_cache: Arc<Mutex<MemoryLruCache<H256, ImmutableBytes>>>,
 	/// Local dirty cache.
 	local_cache: Vec<CacheQueueItem>,
 	/// Shared account bloom. Does not handle chain reorganizations.
@@ -409,7 +409,7 @@ impl state::Backend for StateDB {
 		})
 	}
 
-	fn cache_code(&self, hash: H256, code: Arc<Vec<u8>>) {
+	fn cache_code(&self, hash: H256, code: ImmutableBytes) {
 		let mut cache = self.code_cache.lock();
 
 		cache.insert(hash, code);
@@ -424,7 +424,7 @@ impl state::Backend for StateDB {
 	}
 
 	#[cfg_attr(feature="dev", allow(map_clone))]
-	fn get_cached_code(&self, hash: &H256) -> Option<Arc<Vec<u8>>> {
+	fn get_cached_code(&self, hash: &H256) -> Option<ImmutableBytes> {
 		let mut cache = self.code_cache.lock();
 
 		cache.get_mut(hash).map(|code| code.clone())

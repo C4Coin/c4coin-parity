@@ -322,7 +322,7 @@ impl ValidatorSet for ValidatorSafeContract {
 					gas: PROVIDED_GAS.into(),
 					gas_price: U256::default(),
 					value: U256::default(),
-					data: d,
+					data: d.into(),
 				}.fake_sign(from);
 
 				let res = ::state::check_proof(

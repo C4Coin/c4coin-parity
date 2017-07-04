@@ -15,13 +15,11 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Evm input params.
-use util::{Address, Bytes, U256};
+use util::{Address, U256, ImmutableBytes};
 use util::hash::{H256};
 use util::sha3::{Hashable, SHA3_EMPTY};
 use ethjson;
 use types::executed::CallType;
-
-use std::sync::Arc;
 
 /// Transaction value
 #[derive(Clone, Debug)]
@@ -63,9 +61,9 @@ pub struct ActionParams {
 	/// Transaction value.
 	pub value: ActionValue,
 	/// Code being executed.
-	pub code: Option<Arc<Bytes>>,
+	pub code: Option<ImmutableBytes>,
 	/// Input data.
-	pub data: Option<Bytes>,
+	pub data: Option<ImmutableBytes>,
 	/// Type of call
 	pub call_type: CallType,
 
@@ -93,14 +91,17 @@ impl Default for ActionParams {
 impl From<ethjson::vm::Transaction> for ActionParams {
 	fn from(t: ethjson::vm::Transaction) -> Self {
 		let address: Address = t.address.into();
+		let code_hash = (&*t.code).sha3();
+		let code: Vec<u8> = t.code.into();
+		let data: Vec<u8> = t.data.into();
 		ActionParams {
 			code_address: Address::new(),
-			code_hash: (&*t.code).sha3(),
+			code_hash: code_hash,
 			address: address,
 			sender: t.sender.into(),
 			origin: t.origin.into(),
-			code: Some(Arc::new(t.code.into())),
-			data: Some(t.data.into()),
+			code: Some(code.into()),
+			data: Some(data.into()),
 			gas: t.gas.into(),
 			gas_price: t.gas_price.into(),
 			value: ActionValue::Transfer(t.value.into()),

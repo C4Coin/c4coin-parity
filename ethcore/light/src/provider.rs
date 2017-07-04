@@ -179,7 +179,7 @@ impl<T: ProvingBlockChainClient + ?Sized> Provider for T {
 
 	fn contract_code(&self, req: request::CompleteCodeRequest) -> Option<request::CodeResponse> {
 		self.state_data(&req.code_hash)
-			.map(|code| ::request::CodeResponse { code: code })
+			.map(|code| ::request::CodeResponse { code: code.into() })
 	}
 
 	fn header_proof(&self, req: request::CompleteHeaderProofRequest) -> Option<request::HeaderProofResponse> {

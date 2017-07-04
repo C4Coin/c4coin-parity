@@ -112,7 +112,7 @@ impl ContractClient for LightRegistrar {
 						gas: 50_000_000.into(),
 						gas_price: 0.into(),
 						value: 0.into(),
-						data: data,
+						data: data.into(),
 					}.fake_sign(Address::default()),
 					header: header.into(),
 					env_info: env_info,

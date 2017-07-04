@@ -774,7 +774,7 @@ impl MinerService for Miner {
 		self.from_pending_block(
 			chain.chain_info().best_block_number,
 			|| Some(chain.latest_code(address)),
-			|b| b.block().fields().state.code(address).ok().map(|c| c.map(|c| (&*c).clone()))
+			|b| b.block().fields().state.code(address).ok().map(|c| c.map(|c| c.to_vec()))
 		)
 	}
 

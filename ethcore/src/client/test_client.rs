@@ -249,7 +249,7 @@ impl TestBlockChainClient {
 					let tx = Transaction {
 						action: Action::Create,
 						value: U256::from(100),
-						data: "3331600055".from_hex().unwrap(),
+						data: "3331600055".from_hex().unwrap().into(),
 						gas: U256::from(100_000),
 						gas_price: U256::from(200_000_000_000u64),
 						nonce: U256::zero()
@@ -315,7 +315,7 @@ impl TestBlockChainClient {
 		let tx = Transaction {
 			action: Action::Create,
 			value: U256::from(100),
-			data: "3331600055".from_hex().unwrap(),
+			data: "3331600055".from_hex().unwrap().into(),
 			gas: U256::from(100_000),
 			gas_price: gas_price,
 			nonce: U256::zero()
@@ -746,7 +746,7 @@ impl BlockChainClient for TestBlockChainClient {
 			gas: self.spec.gas_limit,
 			gas_price: U256::zero(),
 			value: U256::default(),
-			data: data,
+			data: data.into(),
 		};
 		let network_id = Some(self.spec.params().network_id);
 		let sig = self.spec.engine.sign(transaction.hash(network_id)).unwrap();

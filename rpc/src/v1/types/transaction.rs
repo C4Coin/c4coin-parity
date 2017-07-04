@@ -190,7 +190,7 @@ impl Transaction {
 			value: t.value.into(),
 			gas_price: t.gas_price.into(),
 			gas: t.gas.into(),
-			input: Bytes::new(t.data.clone()),
+			input: (&t.data).into(),
 			creates: match t.action {
 				Action::Create => Some(contract_address(scheme, &t.sender(), &t.nonce, &t.data.sha3()).into()),
 				Action::Call(_) => None,
@@ -224,7 +224,7 @@ impl Transaction {
 			value: t.value.into(),
 			gas_price: t.gas_price.into(),
 			gas: t.gas.into(),
-			input: Bytes::new(t.data.clone()),
+			input: (&t.data).into(),
 			creates: match t.action {
 				Action::Create => Some(contract_address(scheme, &t.sender(), &t.nonce, &t.data.sha3()).into()),
 				Action::Call(_) => None,

@@ -139,7 +139,7 @@ impl<D: Dispatcher + 'static> SignerClient<D> {
 
 		// Verification
 		let sender_matches = sender == request.from;
-		let data_matches = signed_transaction.data == request.data;
+		let data_matches = &*signed_transaction.data == &*request.data;
 		let value_matches = signed_transaction.value == request.value;
 		let nonce_matches = match request.nonce {
 			Some(nonce) => signed_transaction.nonce == nonce,

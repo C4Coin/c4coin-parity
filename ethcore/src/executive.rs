@@ -216,7 +216,7 @@ impl<'a, B: 'a + StateBackend, E: Engine + ?Sized> Executive<'a, B, E> {
 					gas: init_gas,
 					gas_price: t.gas_price,
 					value: ActionValue::Transfer(t.value),
-					code: Some(Arc::new(t.data.clone())),
+					code: Some(t.data.clone()),
 					data: None,
 					call_type: CallType::None,
 				};

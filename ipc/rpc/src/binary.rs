@@ -16,7 +16,7 @@
 
 //! Binary representation of types
 
-use util::{U256, U512, H256, H512, H2048, Address};
+use util::{U256, U512, H256, H512, H2048, Address, ImmutableBytes};
 use std::mem;
 use std::collections::{VecDeque, BTreeMap};
 use std::ops::Range;
@@ -578,6 +578,32 @@ impl BinaryConvertable for Vec<u8> {
 		unsafe { res.set_len(buffer.len()) }
 		res[..].clone_from_slice(&buffer[..]);
 		Ok(res)
+	}
+
+	fn len_params() -> usize {
+		1
+	}
+}
+
+impl BinaryConvertable for ImmutableBytes {
+	fn size(&self) -> usize {
+		self.len()
+	}
+
+	fn from_empty_bytes() -> Result<Self, BinaryConvertError> {
+		Ok(ImmutableBytes::new())
+	}
+
+	fn to_bytes(&self, buffer: &mut [u8], _length_stack: &mut VecDeque<usize>) -> Result<(), BinaryConvertError> {
+		buffer[..].clone_from_slice(&self[..]);
+		Ok(())
+	}
+
+	fn from_bytes(buffer: &[u8], _length_stack: &mut VecDeque<usize>) -> Result<Self, BinaryConvertError> {
+		let mut res = Vec::with_capacity(buffer.len());
+		unsafe { res.set_len(buffer.len()) }
+		res[..].clone_from_slice(&buffer[..]);
+		Ok(res.into())
 	}
 
 	fn len_params() -> usize {
