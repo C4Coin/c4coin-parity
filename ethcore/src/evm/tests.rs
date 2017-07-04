@@ -56,7 +56,7 @@ pub struct FakeExt {
 	depth: usize,
 	store: HashMap<H256, H256>,
 	blockhashes: HashMap<U256, H256>,
-	codes: HashMap<Address, ImmutableBytes>,
+	codes: HashMap<Address, SharedBytes>,
 	logs: Vec<FakeLogEntry>,
 	_suicides: HashSet<Address>,
 	info: EnvInfo,
@@ -152,8 +152,8 @@ impl Ext for FakeExt {
 		MessageCallResult::Success(*gas, ReturnData::empty())
 	}
 
-	fn extcode(&self, address: &Address) -> evm::Result<ImmutableBytes> {
-		Ok(self.codes.get(address).unwrap_or(&ImmutableBytes::new()).clone())
+	fn extcode(&self, address: &Address) -> evm::Result<SharedBytes> {
+		Ok(self.codes.get(address).unwrap_or(&SharedBytes::new()).clone())
 	}
 
 	fn extcodesize(&self, address: &Address) -> evm::Result<usize> {

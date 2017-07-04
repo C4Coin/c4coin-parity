@@ -537,7 +537,7 @@ impl<B: Backend> State<B> {
 	}
 
 	/// Get accounts' code.
-	pub fn code(&self, a: &Address) -> trie::Result<Option<ImmutableBytes>> {
+	pub fn code(&self, a: &Address) -> trie::Result<Option<SharedBytes>> {
 		self.ensure_cached(a, RequireCache::Code, true,
 			|a| a.as_ref().map_or(None, |a| a.code().clone()))
 	}
@@ -606,13 +606,13 @@ impl<B: Backend> State<B> {
 
 	/// Initialise the code of account `a` so that it is `code`.
 	/// NOTE: Account should have been created with `new_contract`.
-	pub fn init_code(&mut self, a: &Address, code: ImmutableBytes) -> trie::Result<()> {
+	pub fn init_code(&mut self, a: &Address, code: SharedBytes) -> trie::Result<()> {
 		self.require_or_from(a, true, || Account::new_contract(0.into(), self.account_start_nonce), |_|{})?.init_code(code);
 		Ok(())
 	}
 
 	/// Reset the code of account `a` so that it is `code`.
-	pub fn reset_code(&mut self, a: &Address, code: ImmutableBytes) -> trie::Result<()> {
+	pub fn reset_code(&mut self, a: &Address, code: SharedBytes) -> trie::Result<()> {
 		self.require_or_from(a, true, || Account::new_contract(0.into(), self.account_start_nonce), |_|{})?.reset_code(code);
 		Ok(())
 	}

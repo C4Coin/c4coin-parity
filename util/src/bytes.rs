@@ -125,27 +125,27 @@ pub type Bytes = Vec<u8>;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 /// Immutable vector of bytes
-pub struct ImmutableBytes(bytes::Bytes);
+pub struct SharedBytes(bytes::Bytes);
 
-impl ImmutableBytes {
-	/// Creates a new empty `ImmutableBytes`.
+impl SharedBytes {
+	/// Creates a new empty `SharedBytes`.
 	pub fn new() -> Self {
-		ImmutableBytes(bytes::Bytes::new())
+		SharedBytes(bytes::Bytes::new())
 	}
 
-	/// Creates a new `ImmutableBytes`from a static slice.
+	/// Creates a new `SharedBytes`from a static slice.
 	pub fn from_static(data: &'static [u8]) -> Self {
-		ImmutableBytes(bytes::Bytes::from_static(data))
+		SharedBytes(bytes::Bytes::from_static(data))
 	}
 }
 
-impl Default for ImmutableBytes {
+impl Default for SharedBytes {
 	fn default() -> Self {
-		ImmutableBytes::new()
+		SharedBytes::new()
 	}
 }
 
-impl ::std::ops::Deref for ImmutableBytes {
+impl ::std::ops::Deref for SharedBytes {
 	type Target = [u8];
 
 	fn deref(&self) -> &Self::Target {
@@ -153,30 +153,30 @@ impl ::std::ops::Deref for ImmutableBytes {
 	}
 }
 
-impl AsRef<[u8]> for ImmutableBytes {
+impl AsRef<[u8]> for SharedBytes {
 	fn as_ref(&self) -> &[u8] {
 		&*self.0
 	}
 }
 
-impl<T: Into<bytes::Bytes>> From<T> for ImmutableBytes {
+impl<T: Into<bytes::Bytes>> From<T> for SharedBytes {
 	fn from(t: T) -> Self {
-		ImmutableBytes(t.into())
+		SharedBytes(t.into())
 	}
 }
 
-impl ::HeapSizeOf for ImmutableBytes {
+impl ::HeapSizeOf for SharedBytes {
 	fn heap_size_of_children(&self) -> usize {
 		self.0.len()
 	}
 }
 
-impl rlp::Encodable for ImmutableBytes {
+impl rlp::Encodable for SharedBytes {
 	fn rlp_append(&self, s: &mut rlp::RlpStream) {
 		s.encoder().encode_value(self);
 	}
 }
-impl rlp::Decodable for ImmutableBytes {
+impl rlp::Decodable for SharedBytes {
 	fn decode(rlp: &rlp::UntrustedRlp) -> Result<Self, rlp::DecoderError> {
 		rlp.decoder().decode_value(|bytes| {
 			Ok(bytes.into())

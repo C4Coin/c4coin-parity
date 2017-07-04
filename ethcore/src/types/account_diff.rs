@@ -19,7 +19,7 @@
 use std::cmp::*;
 use std::fmt;
 use std::collections::BTreeMap;
-use util::{U256, H256, ImmutableBytes};
+use util::{U256, H256, SharedBytes};
 use ipc::binary::BinaryConvertable;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -59,7 +59,7 @@ pub struct AccountDiff {
 	/// Change in nonce, allowed to be `Diff::Same`.
 	pub nonce: Diff<U256>,					// Allowed to be Same
 	/// Change in code, allowed to be `Diff::Same`.
-	pub code: Diff<ImmutableBytes>,			// Allowed to be Same
+	pub code: Diff<SharedBytes>,			// Allowed to be Same
 	/// Change in storage, values are not allowed to be `Diff::Same`.
 	pub storage: BTreeMap<H256, Diff<H256>>,
 }

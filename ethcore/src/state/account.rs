@@ -47,7 +47,7 @@ pub struct Account {
 	// Size of the accoun code.
 	code_size: Option<usize>,
 	// Code cache of the account.
-	code_cache: ImmutableBytes,
+	code_cache: SharedBytes,
 	// Account code new or has been modified.
 	code_filth: Filth,
 	// Cached address hash.
@@ -64,7 +64,7 @@ impl From<BasicAccount> for Account {
 			storage_changes: HashMap::new(),
 			code_hash: basic.code_hash,
 			code_size: None,
-			code_cache: ImmutableBytes::new(),
+			code_cache: SharedBytes::new(),
 			code_filth: Filth::Clean,
 			address_hash: Cell::new(None),
 		}
@@ -74,7 +74,7 @@ impl From<BasicAccount> for Account {
 impl Account {
 	#[cfg(test)]
 	/// General constructor.
-	pub fn new(balance: U256, nonce: U256, storage: HashMap<H256, H256>, code: ImmutableBytes) -> Account {
+	pub fn new(balance: U256, nonce: U256, storage: HashMap<H256, H256>, code: SharedBytes) -> Account {
 		Account {
 			balance: balance,
 			nonce: nonce,
@@ -106,7 +106,7 @@ impl Account {
 			code_size: Some(pod.code.as_ref().map_or(0, |c| c.len())),
 			code_cache: pod.code.unwrap_or_else(|| {
 				warn!("POD account with unknown code is being created! Assuming no code.");
-				ImmutableBytes::new()
+				SharedBytes::new()
 			}),
 			address_hash: Cell::new(None),
 		}
@@ -121,7 +121,7 @@ impl Account {
 			storage_cache: Self::empty_storage_cache(),
 			storage_changes: HashMap::new(),
 			code_hash: SHA3_EMPTY,
-			code_cache: ImmutableBytes::new(),
+			code_cache: SharedBytes::new(),
 			code_size: Some(0),
 			code_filth: Filth::Clean,
 			address_hash: Cell::new(None),
@@ -144,7 +144,7 @@ impl Account {
 			storage_cache: Self::empty_storage_cache(),
 			storage_changes: HashMap::new(),
 			code_hash: SHA3_EMPTY,
-			code_cache: ImmutableBytes::new(),
+			code_cache: SharedBytes::new(),
 			code_size: None,
 			code_filth: Filth::Clean,
 			address_hash: Cell::new(None),
@@ -153,7 +153,7 @@ impl Account {
 
 	/// Set this account's code to the given code.
 	/// NOTE: Account should have been created with `new_contract()`
-	pub fn init_code(&mut self, code: ImmutableBytes) {
+	pub fn init_code(&mut self, code: SharedBytes) {
 		self.code_hash = code.sha3();
 		self.code_cache = code;
 		self.code_size = Some(self.code_cache.len());
@@ -161,7 +161,7 @@ impl Account {
 	}
 
 	/// Reset this account's code to the given code.
-	pub fn reset_code(&mut self, code: ImmutableBytes) {
+	pub fn reset_code(&mut self, code: SharedBytes) {
 		self.init_code(code);
 	}
 
@@ -219,7 +219,7 @@ impl Account {
 
 	/// returns the account's code. If `None` then the code cache isn't available -
 	/// get someone who knows to call `note_code`.
-	pub fn code(&self) -> Option<ImmutableBytes> {
+	pub fn code(&self) -> Option<SharedBytes> {
 		if self.code_hash != SHA3_EMPTY && self.code_cache.is_empty() {
 			return None;
 		}
@@ -234,7 +234,7 @@ impl Account {
 
 	#[cfg(test)]
 	/// Provide a byte array which hashes to the `code_hash`. returns the hash as a result.
-	pub fn note_code(&mut self, code: ImmutableBytes) -> Result<(), H256> {
+	pub fn note_code(&mut self, code: SharedBytes) -> Result<(), H256> {
 		let h = code.sha3();
 		if self.code_hash == h {
 			self.code_cache = code;
@@ -251,7 +251,7 @@ impl Account {
 	}
 
 	/// Provide a database to get `code_hash`. Should not be called if it is a contract without code.
-	pub fn cache_code(&mut self, db: &HashDB) -> Option<ImmutableBytes> {
+	pub fn cache_code(&mut self, db: &HashDB) -> Option<SharedBytes> {
 		// TODO: fill out self.code_cache;
 		trace!("Account::cache_code: ic={}; self.code_hash={:?}, self.code_cache={}", self.is_cached(), self.code_hash, self.code_cache.pretty());
 
@@ -272,7 +272,7 @@ impl Account {
 
 	/// Provide code to cache. For correctness, should be the correct code for the
 	/// account.
-	pub fn cache_given_code(&mut self, code: ImmutableBytes) {
+	pub fn cache_given_code(&mut self, code: SharedBytes) {
 		trace!("Account::cache_given_code: ic={}; self.code_hash={:?}, self.code_cache={}", self.is_cached(), self.code_hash, self.code_cache.pretty());
 
 		self.code_size = Some(code.len());

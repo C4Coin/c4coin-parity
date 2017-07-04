@@ -1487,7 +1487,7 @@ pub mod storage {
 pub mod contract_code {
 	use super::{Field, NoSuchOutput, OutputKind, Output};
 	use rlp::{Encodable, Decodable, DecoderError, RlpStream, UntrustedRlp};
-	use util::{ImmutableBytes, H256};
+	use util::{SharedBytes, H256};
 
 	/// Potentially incomplete contract code request.
 	#[derive(Debug, Clone, PartialEq, Eq)]
@@ -1576,7 +1576,7 @@ pub mod contract_code {
 	#[derive(Debug, Clone, PartialEq, Eq)]
 	pub struct Response {
 		/// The requested code.
-		pub code: ImmutableBytes,
+		pub code: SharedBytes,
 	}
 
 	impl super::ResponseLike for Response {
@@ -1605,7 +1605,7 @@ pub mod execution {
 	use super::{Field, NoSuchOutput, OutputKind, Output};
 	use ethcore::transaction::Action;
 	use rlp::{Encodable, Decodable, DecoderError, RlpStream, UntrustedRlp};
-	use util::{ImmutableBytes, Address, U256, H256, DBValue};
+	use util::{SharedBytes, Address, U256, H256, DBValue};
 
 	/// Potentially incomplete execution proof request.
 	#[derive(Debug, Clone, PartialEq, Eq)]
@@ -1623,7 +1623,7 @@ pub mod execution {
 		/// The value to transfer.
 		pub value: U256,
 		/// Call data.
-		pub data: ImmutableBytes,
+		pub data: SharedBytes,
 	}
 
 	impl Decodable for Incomplete {
@@ -1715,7 +1715,7 @@ pub mod execution {
 		/// The value to transfer.
 		pub value: U256,
 		/// Call data.
-		pub data: ImmutableBytes,
+		pub data: SharedBytes,
 	}
 
 	/// The output of a request for proof of execution

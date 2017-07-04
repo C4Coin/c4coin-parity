@@ -146,7 +146,7 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for TestExt<'a, T, V, B, E>
 		MessageCallResult::Success(*gas, ReturnData::empty())
 	}
 
-	fn extcode(&self, address: &Address) -> evm::Result<ImmutableBytes>  {
+	fn extcode(&self, address: &Address) -> evm::Result<SharedBytes>  {
 		self.ext.extcode(address)
 	}
 

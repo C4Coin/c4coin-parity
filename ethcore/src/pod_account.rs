@@ -29,7 +29,7 @@ pub struct PodAccount {
 	/// The nonce of the account.
 	pub nonce: U256,
 	/// The code of the account or `None` in the special case that it is unknown.
-	pub code: Option<ImmutableBytes>,
+	pub code: Option<SharedBytes>,
 	/// The storage of the account.
 	pub storage: BTreeMap<H256, H256>,
 }
@@ -37,7 +37,7 @@ pub struct PodAccount {
 impl PodAccount {
 	/// Construct new object.
 	#[cfg(test)]
-	pub fn new(balance: U256, nonce: U256, code: ImmutableBytes, storage: BTreeMap<H256, H256>) -> PodAccount {
+	pub fn new(balance: U256, nonce: U256, code: SharedBytes, storage: BTreeMap<H256, H256>) -> PodAccount {
 		PodAccount { balance: balance, nonce: nonce, code: Some(code), storage: storage }
 	}
 
@@ -58,7 +58,7 @@ impl PodAccount {
 		stream.append(&self.nonce);
 		stream.append(&self.balance);
 		stream.append(&sec_trie_root(self.storage.iter().map(|(k, v)| (k.to_vec(), rlp::encode(&U256::from(&**v)).to_vec())).collect()));
-		stream.append(&self.code.as_ref().unwrap_or(&ImmutableBytes::new()).sha3());
+		stream.append(&self.code.as_ref().unwrap_or(&SharedBytes::new()).sha3());
 		stream.out()
 	}
 
@@ -100,7 +100,7 @@ impl From<ethjson::spec::Account> for PodAccount {
 		PodAccount {
 			balance: a.balance.map_or_else(U256::zero, Into::into),
 			nonce: a.nonce.map_or_else(U256::zero, Into::into),
-			code: Some(code.map_or_else(ImmutableBytes::new, Into::into)),
+			code: Some(code.map_or_else(SharedBytes::new, Into::into)),
 			storage: a.storage.map_or_else(BTreeMap::new, |s| s.into_iter().map(|(key, value)| {
 				let key: U256 = key.into();
 				let value: U256 = value.into();

@@ -230,7 +230,7 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 		}
 	}
 
-	// TODO [ToDr] USe ImmutableBytes
+	// TODO [ToDr] USe SharedBytes
 	fn call(&mut self,
 		gas: &U256,
 		sender_address: &Address,
@@ -277,8 +277,8 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for Externalities<'a, T, V, B, E>
 		}
 	}
 
-	fn extcode(&self, address: &Address) -> evm::Result<ImmutableBytes> {
-		Ok(self.state.code(address)?.unwrap_or_else(ImmutableBytes::new))
+	fn extcode(&self, address: &Address) -> evm::Result<SharedBytes> {
+		Ok(self.state.code(address)?.unwrap_or_else(SharedBytes::new))
 	}
 
 	fn extcodesize(&self, address: &Address) -> evm::Result<usize> {

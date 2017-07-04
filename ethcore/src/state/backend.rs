@@ -24,7 +24,7 @@
 use std::collections::{HashSet, HashMap};
 
 use state::Account;
-use util::{Address, MemoryDB, Mutex, H256, ImmutableBytes};
+use util::{Address, MemoryDB, Mutex, H256, SharedBytes};
 use util::hashdb::{AsHashDB, HashDB, DBValue};
 
 /// State backend. See module docs for more details.
@@ -41,7 +41,7 @@ pub trait Backend: Send {
 	/// Add a global code cache entry. This doesn't need to worry about canonicality because
 	/// it simply maps hashes to raw code and will always be correct in the absence of
 	/// hash collisions.
-	fn cache_code(&self, hash: H256, code: ImmutableBytes);
+	fn cache_code(&self, hash: H256, code: SharedBytes);
 
 	/// Get basic copy of the cached account. Not required to include storage.
 	/// Returns 'None' if cache is disabled or if the account is not cached.
@@ -55,7 +55,7 @@ pub trait Backend: Send {
 		where F: FnOnce(Option<&mut Account>) -> U;
 
 	/// Get cached code based on hash.
-	fn get_cached_code(&self, hash: &H256) -> Option<ImmutableBytes>;
+	fn get_cached_code(&self, hash: &H256) -> Option<SharedBytes>;
 
 	/// Note that an account with the given address is non-null.
 	fn note_non_null_account(&self, address: &Address);
@@ -108,14 +108,14 @@ impl Backend for ProofCheck {
 	fn as_hashdb(&self) -> &HashDB { self }
 	fn as_hashdb_mut(&mut self) -> &mut HashDB { self }
 	fn add_to_account_cache(&mut self, _addr: Address, _data: Option<Account>, _modified: bool) {}
-	fn cache_code(&self, _hash: H256, _code: ImmutableBytes) {}
+	fn cache_code(&self, _hash: H256, _code: SharedBytes) {}
 	fn get_cached_account(&self, _addr: &Address) -> Option<Option<Account>> { None }
 	fn get_cached<F, U>(&self, _a: &Address, _f: F) -> Option<U>
 		where F: FnOnce(Option<&mut Account>) -> U
 	{
 		None
 	}
-	fn get_cached_code(&self, _hash: &H256) -> Option<ImmutableBytes> { None }
+	fn get_cached_code(&self, _hash: &H256) -> Option<SharedBytes> { None }
 	fn note_non_null_account(&self, _address: &Address) {}
 	fn is_known_null(&self, _address: &Address) -> bool { false }
 }
@@ -179,7 +179,7 @@ impl<H: AsHashDB + Send + Sync> Backend for Proving<H> {
 
 	fn add_to_account_cache(&mut self, _: Address, _: Option<Account>, _: bool) { }
 
-	fn cache_code(&self, _: H256, _: ImmutableBytes) { }
+	fn cache_code(&self, _: H256, _: SharedBytes) { }
 
 	fn get_cached_account(&self, _: &Address) -> Option<Option<Account>> { None }
 
@@ -189,7 +189,7 @@ impl<H: AsHashDB + Send + Sync> Backend for Proving<H> {
 		None
 	}
 
-	fn get_cached_code(&self, _: &H256) -> Option<ImmutableBytes> { None }
+	fn get_cached_code(&self, _: &H256) -> Option<SharedBytes> { None }
 	fn note_non_null_account(&self, _: &Address) { }
 	fn is_known_null(&self, _: &Address) -> bool { false }
 }
@@ -237,7 +237,7 @@ impl<H: AsHashDB + Send + Sync> Backend for Basic<H> {
 
 	fn add_to_account_cache(&mut self, _: Address, _: Option<Account>, _: bool) { }
 
-	fn cache_code(&self, _: H256, _: ImmutableBytes) { }
+	fn cache_code(&self, _: H256, _: SharedBytes) { }
 
 	fn get_cached_account(&self, _: &Address) -> Option<Option<Account>> { None }
 
@@ -247,7 +247,7 @@ impl<H: AsHashDB + Send + Sync> Backend for Basic<H> {
 		None
 	}
 
-	fn get_cached_code(&self, _: &H256) -> Option<ImmutableBytes> { None }
+	fn get_cached_code(&self, _: &H256) -> Option<SharedBytes> { None }
 	fn note_non_null_account(&self, _: &Address) { }
 	fn is_known_null(&self, _: &Address) -> bool { false }
 }

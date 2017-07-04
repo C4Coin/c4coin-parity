@@ -15,7 +15,7 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Evm input params.
-use util::{Address, U256, ImmutableBytes};
+use util::{Address, U256, SharedBytes};
 use util::hash::{H256};
 use util::sha3::{Hashable, SHA3_EMPTY};
 use ethjson;
@@ -61,9 +61,9 @@ pub struct ActionParams {
 	/// Transaction value.
 	pub value: ActionValue,
 	/// Code being executed.
-	pub code: Option<ImmutableBytes>,
+	pub code: Option<SharedBytes>,
 	/// Input data.
-	pub data: Option<ImmutableBytes>,
+	pub data: Option<SharedBytes>,
 	/// Type of call
 	pub call_type: CallType,
 

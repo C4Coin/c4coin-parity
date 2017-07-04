@@ -19,7 +19,7 @@
 use std::ops::Deref;
 use rlp::*;
 use util::sha3::Hashable;
-use util::{H256, Address, U256, HeapSizeOf, ImmutableBytes};
+use util::{H256, Address, U256, HeapSizeOf, SharedBytes};
 use ethkey::{Signature, Secret, Public, recover, public_to_address, Error as EthkeyError};
 use error::*;
 use evm::Schedule;
@@ -83,7 +83,7 @@ pub struct Transaction {
 	/// Transfered value.
 	pub value: U256,
 	/// Transaction data.
-	pub data: ImmutableBytes,
+	pub data: SharedBytes,
 }
 
 impl Transaction {
