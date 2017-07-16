@@ -261,13 +261,13 @@ impl<T: InformantData> Informant<T> {
 			queue_info,
 			cache_sizes,
 			sync_info,
-		} = self.target.report();
-
-		let client_report = {
+		} = {
 			let mut last_report = self.last_report.lock();
-			let diffed = client_report.clone() - &*last_report;
-			*last_report = client_report.clone();
-			diffed
+			let mut report = self.target.report();
+			let diffed = report.client_report.clone() - &*last_report;
+			*last_report = report.client_report.clone();
+			report.client_report = diffed;
+			report
 		};
 
 		let rpc_stats = self.rpc_stats.as_ref();
