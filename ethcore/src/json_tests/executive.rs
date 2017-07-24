@@ -15,15 +15,15 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::test_common::*;
-use action_params::ActionParams;
+use evm::action_params::ActionParams;
 use state::{Backend as StateBackend, State, Substate};
 use executive::*;
 use engines::Engine;
-use env_info::EnvInfo;
+use evm::env_info::EnvInfo;
 use evm;
 use evm::{Schedule, Ext, Finalize, VMType, ContractCreateResult, MessageCallResult, CreateContractAddress, ReturnData};
 use externalities::*;
-use types::executed::CallType;
+use evm::CallType;
 use tests::helpers::*;
 use ethjson;
 use trace::{Tracer, NoopTracer};
@@ -123,7 +123,7 @@ impl<'a, T: 'a, V: 'a, B: 'a, E: 'a> Ext for TestExt<'a, T, V, B, E>
 			gas_limit: *gas,
 			value: *value
 		});
-		let contract_address = contract_address(address, &self.sender, &self.nonce, &code.sha3());
+		let contract_address = contract_address(address, &self.sender, &self.nonce, &code).0;
 		ContractCreateResult::Created(contract_address, *gas)
 	}
 

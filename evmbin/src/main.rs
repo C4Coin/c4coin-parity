@@ -19,16 +19,22 @@
 #![warn(missing_docs)]
 #![allow(dead_code)]
 extern crate ethcore;
-extern crate rustc_serialize;
+extern crate rustc_hex;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate docopt;
 extern crate ethcore_util as util;
+extern crate evm;
+extern crate panic_hook;
 
 use std::sync::Arc;
 use std::{fmt, fs};
 use docopt::Docopt;
-use util::{U256, FromHex, Bytes, Address};
+use rustc_hex::FromHex;
+use util::{U256, Bytes, Address};
 use ethcore::spec;
-use ethcore::action_params::ActionParams;
+use evm::action_params::ActionParams;
 
 mod vm;
 mod display;
@@ -58,7 +64,9 @@ General options:
 
 
 fn main() {
-	let args: Args = Docopt::new(USAGE).and_then(|d| d.decode()).unwrap_or_else(|e| e.exit());
+	panic_hook::set();
+
+	let args: Args = Docopt::new(USAGE).and_then(|d| d.deserialize()).unwrap_or_else(|e| e.exit());
 
 	if args.flag_json {
 		run(args, display::json::Informant::default())
@@ -86,7 +94,7 @@ fn run<T: Informant>(args: Args, mut informant: T) {
 	informant.finish(result);
 }
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 struct Args {
 	cmd_stats: bool,
 	flag_from: Option<String>,
@@ -130,10 +138,10 @@ impl Args {
 		Ok(match self.flag_spec {
 			Some(ref filename) =>  {
 				let file = fs::File::open(filename).map_err(|e| format!("{}", e))?;
-				spec::Spec::load(file)?
+				spec::Spec::load(::std::env::temp_dir(), file)?
 			},
 			None => {
-				spec::Spec::new_instant()
+				ethcore::ethereum::new_foundation(&::std::env::temp_dir())
 			},
 		})
 	}

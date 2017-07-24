@@ -36,6 +36,12 @@ impl From<&'static str> for Error {
 	}
 }
 
+impl Into<::evm::Error> for Error {
+	fn into(self) -> ::evm::Error {
+		::evm::Error::BuiltIn(self.0)
+	}
+}
+
 /// Native implementation of a built-in contract.
 pub trait Impl: Send + Sync {
 	/// execute this built-in on the given input, writing to the given output.
@@ -346,7 +352,7 @@ fn read_point(reader: &mut io::Chain<&[u8], io::Repeat>) -> Result<::bn::G1, Err
 	let px = Fq::from_slice(&buf[0..32]).map_err(|_| Error::from("Invalid point x coordinate"))?;
 
 	reader.read_exact(&mut buf[..]).expect("reading from zero-extended memory cannot fail; qed");
-	let py = Fq::from_slice(&buf[0..32]).map_err(|_| Error::from("Invalid point x coordinate"))?;
+	let py = Fq::from_slice(&buf[0..32]).map_err(|_| Error::from("Invalid point y coordinate"))?;
 
 	Ok(
 		if px == Fq::zero() && py == Fq::zero() {
@@ -500,7 +506,7 @@ mod tests {
 	use super::{Builtin, Linear, ethereum_builtin, Pricer, Modexp};
 	use ethjson;
 	use util::{U256, BytesRef};
-	use rustc_serialize::hex::FromHex;
+	use rustc_hex::FromHex;
 
 	#[test]
 	fn identity() {
@@ -524,7 +530,6 @@ mod tests {
 
 	#[test]
 	fn sha256() {
-		use rustc_serialize::hex::FromHex;
 		let f = ethereum_builtin("sha256");
 
 		let i = [0u8; 0];
@@ -548,7 +553,6 @@ mod tests {
 
 	#[test]
 	fn ripemd160() {
-		use rustc_serialize::hex::FromHex;
 		let f = ethereum_builtin("ripemd160");
 
 		let i = [0u8; 0];
@@ -568,7 +572,6 @@ mod tests {
 
 	#[test]
 	fn ecrecover() {
-		use rustc_serialize::hex::FromHex;
 		/*let k = KeyPair::from_secret(b"test".sha3()).unwrap();
 		let a: Address = From::from(k.public().sha3());
 		println!("Address: {}", a);
@@ -627,7 +630,6 @@ mod tests {
 
 	#[test]
 	fn modexp() {
-		use rustc_serialize::hex::FromHex;
 
 		let f = Builtin {
 			pricer: Box::new(Modexp { divisor: 20 }),
@@ -714,7 +716,6 @@ mod tests {
 
 	#[test]
 	fn bn128_add() {
-		use rustc_serialize::hex::FromHex;
 
 		let f = Builtin {
 			pricer: Box::new(Linear { base: 0, word: 0 }),
@@ -776,7 +777,6 @@ mod tests {
 
 	#[test]
 	fn bn128_mul() {
-		use rustc_serialize::hex::FromHex;
 
 		let f = Builtin {
 			pricer: Box::new(Linear { base: 0, word: 0 }),

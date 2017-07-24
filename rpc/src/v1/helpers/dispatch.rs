@@ -162,7 +162,7 @@ impl<C: MiningBlockChainClient, M: MinerService> Dispatcher for FullDispatcher<C
 		let hash = signed_transaction.transaction.hash();
 
 		self.miner.import_own_transaction(&*self.client, signed_transaction)
-			.map_err(errors::from_transaction_error)
+			.map_err(errors::transaction)
 			.map(|_| hash)
 	}
 }
@@ -284,7 +284,7 @@ impl LightDispatcher {
 		}
 
 		let best_header = self.client.best_block_header();
-		let account_start_nonce = self.client.engine().account_start_nonce();
+		let account_start_nonce = self.client.engine().account_start_nonce(best_header.number());
 		let nonce_future = self.sync.with_context(|ctx| self.on_demand.request(ctx, request::Account {
 			header: best_header.into(),
 			address: addr,
@@ -400,7 +400,7 @@ impl Dispatcher for LightDispatcher {
 
 		self.transaction_queue.write().import(signed_transaction)
 			.map_err(Into::into)
-			.map_err(errors::from_transaction_error)
+			.map_err(errors::transaction)
 			.map(|_| hash)
 	}
 }
@@ -538,8 +538,8 @@ fn signature(accounts: &AccountProvider, address: Address, hash: H256, password:
 		SignWith::Password(pass) => accounts.sign(address, Some(pass), hash).map(WithToken::No),
 		SignWith::Token(token) => accounts.sign_with_token(address, token, hash).map(Into::into),
 	}.map_err(|e| match password {
-		SignWith::Nothing => errors::from_signing_error(e),
-		_ => errors::from_password_error(e),
+		SignWith::Nothing => errors::signing(e),
+		_ => errors::password(e),
 	})
 }
 
@@ -570,8 +570,8 @@ fn decrypt(accounts: &AccountProvider, address: Address, msg: Bytes, password: S
 		SignWith::Password(pass) => accounts.decrypt(address, Some(pass), &DEFAULT_MAC, &msg).map(WithToken::No),
 		SignWith::Token(token) => accounts.decrypt_with_token(address, token, &DEFAULT_MAC, &msg).map(Into::into),
 	}.map_err(|e| match password {
-		SignWith::Nothing => errors::from_signing_error(e),
-		_ => errors::from_password_error(e),
+		SignWith::Nothing => errors::signing(e),
+		_ => errors::password(e),
 	})
 }
 

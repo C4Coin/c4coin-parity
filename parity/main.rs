@@ -29,6 +29,7 @@ extern crate docopt;
 extern crate env_logger;
 extern crate fdlimit;
 extern crate futures;
+extern crate futures_cpupool;
 extern crate isatty;
 extern crate jsonrpc_core;
 extern crate num_cpus;
@@ -36,10 +37,12 @@ extern crate number_prefix;
 extern crate regex;
 extern crate rlp;
 extern crate rpassword;
-extern crate rustc_serialize;
+extern crate rustc_hex;
 extern crate semver;
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
 extern crate time;
 extern crate toml;
 
@@ -54,12 +57,14 @@ extern crate ethcore_logger;
 extern crate ethcore_util as util;
 extern crate ethkey;
 extern crate ethsync;
+extern crate panic_hook;
 extern crate parity_hash_fetch as hash_fetch;
 extern crate parity_ipfs_api;
 extern crate parity_local_store as local_store;
 extern crate parity_reactor;
 extern crate parity_rpc;
 extern crate parity_updater as updater;
+extern crate parity_whisper;
 extern crate path;
 extern crate rpc_cli;
 
@@ -107,6 +112,7 @@ mod snapshot;
 mod upgrade;
 mod url;
 mod user_defaults;
+mod whisper;
 
 #[cfg(feature="ipc")]
 mod boot;
@@ -310,8 +316,7 @@ macro_rules! trace_main {
 }
 
 fn main() {
-	// Always print backtrace on panic.
-	env::set_var("RUST_BACKTRACE", "1");
+	panic_hook::set();
 
 	// assuming the user is not running with `--force-direct`, then:
 	// if argv[0] == "parity" and this executable != ~/.parity-updates/parity, run that instead.

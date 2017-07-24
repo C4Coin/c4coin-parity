@@ -14,21 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::path::Path;
 use ethash::{quick_get_difficulty, slow_get_seedhash, EthashManager};
 use util::*;
 use block::*;
 use builtin::Builtin;
-use env_info::EnvInfo;
+use evm::env_info::EnvInfo;
 use error::{BlockError, Error, TransactionError};
 use header::{Header, BlockNumber};
 use state::CleanupMode;
 use spec::CommonParams;
 use transaction::UnverifiedTransaction;
-use engines::Engine;
+use engines::{self, Engine};
 use evm::Schedule;
 use ethjson;
 use rlp::{self, UntrustedRlp};
-use env_info::LastHashes;
+use evm::env_info::LastHashes;
 
 /// Parity tries to round block.gas_limit to multiple of this constant
 pub const PARITY_GAS_LIMIT_DETERMINANT: U256 = U256([37, 0, 0, 0]);
@@ -147,12 +148,17 @@ pub struct Ethash {
 
 impl Ethash {
 	/// Create a new instance of Ethash engine
-	pub fn new(params: CommonParams, ethash_params: EthashParams, builtins: BTreeMap<Address, Builtin>) -> Arc<Self> {
+	pub fn new<T: AsRef<Path>>(
+		cache_dir: T,
+		params: CommonParams,
+		ethash_params: EthashParams,
+		builtins: BTreeMap<Address, Builtin>,
+	) -> Arc<Self> {
 		Arc::new(Ethash {
-			params: params,
-			ethash_params: ethash_params,
-			builtins: builtins,
-			pow: EthashManager::new(),
+			params,
+			ethash_params,
+			builtins,
+			pow: EthashManager::new(cache_dir),
 		})
 	}
 }
@@ -165,8 +171,7 @@ impl Ethash {
 // for any block in the chain.
 // in the future, we might move the Ethash epoch
 // caching onto this mechanism as well.
-impl ::engines::EpochVerifier for Arc<Ethash> {
-	fn epoch_number(&self) -> u64 { 0 }
+impl engines::EpochVerifier for Arc<Ethash> {
 	fn verify_light(&self, _header: &Header) -> Result<(), Error> { Ok(()) }
 	fn verify_heavy(&self, header: &Header) -> Result<(), Error> {
 		self.verify_block_unordered(header, None)
@@ -204,7 +209,8 @@ impl Engine for Arc<Ethash> {
 				block_number >= self.ethash_params.eip160_transition,
 				block_number >= self.ethash_params.eip161abc_transition,
 				block_number >= self.ethash_params.eip161d_transition);
-			schedule.apply_params(block_number, self.params());
+
+			self.params().update_schedule(block_number, &mut schedule);
 			schedule
 		}
 	}
@@ -256,9 +262,14 @@ impl Engine for Arc<Ethash> {
 //		info!("ethash: populate_from_parent #{}: difficulty={} and gas_limit={}", header.number(), header.difficulty(), header.gas_limit());
 	}
 
-	fn on_new_block(&self, block: &mut ExecutedBlock, last_hashes: Arc<LastHashes>) -> Result<(), Error> {
+	fn on_new_block(
+		&self,
+		block: &mut ExecutedBlock,
+		last_hashes: Arc<LastHashes>,
+		_begins_epoch: bool,
+	) -> Result<(), Error> {
 		let parent_hash = block.fields().header.parent_hash().clone();
-		::engines::common::push_last_hash(block, last_hashes, self, &parent_hash)?;
+		engines::common::push_last_hash(block, last_hashes, self, &parent_hash)?;
 		if block.fields().header.number() == self.ethash_params.dao_hardfork_transition {
 			let state = block.fields_mut().state;
 			for child in &self.ethash_params.dao_hardfork_accounts {
@@ -400,8 +411,8 @@ impl Engine for Arc<Ethash> {
 		Ok(())
 	}
 
-	fn epoch_verifier(&self, _header: &Header, _proof: &[u8]) -> Result<Box<::engines::EpochVerifier>, Error> {
-		Ok(Box::new(self.clone()))
+	fn epoch_verifier<'a>(&self, _header: &Header, _proof: &'a [u8]) -> engines::ConstructedVerifier<'a> {
+		engines::ConstructedVerifier::Trusted(Box::new(self.clone()))
 	}
 
 	fn snapshot_components(&self) -> Option<Box<::snapshot::SnapshotComponents>> {
@@ -449,11 +460,14 @@ impl Ethash {
 		let parent_has_uncles = parent.uncles_hash() != &sha3::SHA3_EMPTY_LIST_RLP;
 
 		let min_difficulty = self.ethash_params.minimum_difficulty;
+
 		let difficulty_hardfork = header.number() >= self.ethash_params.difficulty_hardfork_transition;
-		let difficulty_bound_divisor = match difficulty_hardfork {
-			true => self.ethash_params.difficulty_hardfork_bound_divisor,
-			false => self.ethash_params.difficulty_bound_divisor,
+		let difficulty_bound_divisor = if difficulty_hardfork {
+			self.ethash_params.difficulty_hardfork_bound_divisor
+		} else {
+			self.ethash_params.difficulty_bound_divisor
 		};
+
 		let duration_limit = self.ethash_params.duration_limit;
 		let frontier_limit = self.ethash_params.homestead_transition;
 
@@ -479,7 +493,10 @@ impl Ethash {
 			if diff_inc <= threshold {
 				*parent.difficulty() + *parent.difficulty() / difficulty_bound_divisor * (threshold - diff_inc).into()
 			} else {
-				*parent.difficulty() - *parent.difficulty() / difficulty_bound_divisor * min(diff_inc - threshold, 99).into()
+				let multiplier = min(diff_inc - threshold, 99).into();
+				parent.difficulty().saturating_sub(
+					*parent.difficulty() / difficulty_bound_divisor * multiplier
+				)
 			}
 		};
 		target = max(min_difficulty, target);
@@ -536,7 +553,7 @@ impl Header {
 
 	/// Set the nonce and mix hash fields of the header.
 	pub fn set_nonce_and_mix_hash(&mut self, nonce: &H64, mix_hash: &H256) {
-		self.set_seal(vec![rlp::encode(mix_hash).to_vec(), rlp::encode(nonce).to_vec()]);
+		self.set_seal(vec![rlp::encode(mix_hash).into_vec(), rlp::encode(nonce).into_vec()]);
 	}
 }
 
@@ -548,30 +565,35 @@ mod tests {
 	use engines::Engine;
 	use error::{BlockError, Error};
 	use header::Header;
+	use spec::Spec;
 	use super::super::{new_morden, new_homestead_test};
 	use super::{Ethash, EthashParams, PARITY_GAS_LIMIT_DETERMINANT, ecip1017_eras_block_reward};
 	use rlp;
 
+	fn test_spec() -> Spec {
+		new_morden(&::std::env::temp_dir())
+	}
+
 	#[test]
 	fn on_close_block() {
-		let spec = new_morden();
+		let spec = test_spec();
 		let engine = &*spec.engine;
 		let genesis_header = spec.genesis_header();
 		let db = spec.ensure_db_good(get_temp_state_db(), &Default::default()).unwrap();
 		let last_hashes = Arc::new(vec![genesis_header.hash()]);
-		let b = OpenBlock::new(engine, Default::default(), false, db, &genesis_header, last_hashes, Address::zero(), (3141562.into(), 31415620.into()), vec![]).unwrap();
+		let b = OpenBlock::new(engine, Default::default(), false, db, &genesis_header, last_hashes, Address::zero(), (3141562.into(), 31415620.into()), vec![], false).unwrap();
 		let b = b.close();
 		assert_eq!(b.state().balance(&Address::zero()).unwrap(), U256::from_str("4563918244f40000").unwrap());
 	}
 
 	#[test]
 	fn on_close_block_with_uncle() {
-		let spec = new_morden();
+		let spec = test_spec();
 		let engine = &*spec.engine;
 		let genesis_header = spec.genesis_header();
 		let db = spec.ensure_db_good(get_temp_state_db(), &Default::default()).unwrap();
 		let last_hashes = Arc::new(vec![genesis_header.hash()]);
-		let mut b = OpenBlock::new(engine, Default::default(), false, db, &genesis_header, last_hashes, Address::zero(), (3141562.into(), 31415620.into()), vec![]).unwrap();
+		let mut b = OpenBlock::new(engine, Default::default(), false, db, &genesis_header, last_hashes, Address::zero(), (3141562.into(), 31415620.into()), vec![], false).unwrap();
 		let mut uncle = Header::new();
 		let uncle_author: Address = "ef2d6d194084c2de36e0dabfce45d046b37d1106".into();
 		uncle.set_author(uncle_author);
@@ -584,14 +606,14 @@ mod tests {
 
 	#[test]
 	fn has_valid_metadata() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		assert!(!engine.name().is_empty());
 		assert!(engine.version().major >= 1);
 	}
 
 	#[test]
 	fn can_return_schedule() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let schedule = engine.schedule(10000000);
 		assert!(schedule.stack_limit > 0);
 
@@ -601,8 +623,8 @@ mod tests {
 
 	#[test]
 	fn can_do_seal_verification_fail() {
-		let engine = new_morden().engine;
-		//let engine = Ethash::new_test(new_morden());
+		let engine = test_spec().engine;
+		//let engine = Ethash::new_test(test_spec());
 		let header: Header = Header::default();
 
 		let verify_result = engine.verify_block_basic(&header, None);
@@ -616,9 +638,9 @@ mod tests {
 
 	#[test]
 	fn can_do_difficulty_verification_fail() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let mut header: Header = Header::default();
-		header.set_seal(vec![rlp::encode(&H256::zero()).to_vec(), rlp::encode(&H64::zero()).to_vec()]);
+		header.set_seal(vec![rlp::encode(&H256::zero()).into_vec(), rlp::encode(&H64::zero()).into_vec()]);
 
 		let verify_result = engine.verify_block_basic(&header, None);
 
@@ -631,9 +653,9 @@ mod tests {
 
 	#[test]
 	fn can_do_proof_of_work_verification_fail() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let mut header: Header = Header::default();
-		header.set_seal(vec![rlp::encode(&H256::zero()).to_vec(), rlp::encode(&H64::zero()).to_vec()]);
+		header.set_seal(vec![rlp::encode(&H256::zero()).into_vec(), rlp::encode(&H64::zero()).into_vec()]);
 		header.set_difficulty(U256::from_str("ffffffffffffffffffffffffffffffffffffffffffffaaaaaaaaaaaaaaaaaaaa").unwrap());
 
 		let verify_result = engine.verify_block_basic(&header, None);
@@ -647,7 +669,7 @@ mod tests {
 
 	#[test]
 	fn can_do_seal_unordered_verification_fail() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let header: Header = Header::default();
 
 		let verify_result = engine.verify_block_unordered(&header, None);
@@ -661,9 +683,9 @@ mod tests {
 
 	#[test]
 	fn can_do_seal256_verification_fail() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let mut header: Header = Header::default();
-		header.set_seal(vec![rlp::encode(&H256::zero()).to_vec(), rlp::encode(&H64::zero()).to_vec()]);
+		header.set_seal(vec![rlp::encode(&H256::zero()).into_vec(), rlp::encode(&H64::zero()).into_vec()]);
 		let verify_result = engine.verify_block_unordered(&header, None);
 
 		match verify_result {
@@ -675,9 +697,9 @@ mod tests {
 
 	#[test]
 	fn can_do_proof_of_work_unordered_verification_fail() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let mut header: Header = Header::default();
-		header.set_seal(vec![rlp::encode(&H256::from("b251bd2e0283d0658f2cadfdc8ca619b5de94eca5742725e2e757dd13ed7503d")).to_vec(), rlp::encode(&H64::zero()).to_vec()]);
+		header.set_seal(vec![rlp::encode(&H256::from("b251bd2e0283d0658f2cadfdc8ca619b5de94eca5742725e2e757dd13ed7503d")).into_vec(), rlp::encode(&H64::zero()).into_vec()]);
 		header.set_difficulty(U256::from_str("ffffffffffffffffffffffffffffffffffffffffffffaaaaaaaaaaaaaaaaaaaa").unwrap());
 
 		let verify_result = engine.verify_block_unordered(&header, None);
@@ -691,7 +713,7 @@ mod tests {
 
 	#[test]
 	fn can_verify_block_family_genesis_fail() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let header: Header = Header::default();
 		let parent_header: Header = Header::default();
 
@@ -706,7 +728,7 @@ mod tests {
 
 	#[test]
 	fn can_verify_block_family_difficulty_fail() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let mut header: Header = Header::default();
 		header.set_number(2);
 		let mut parent_header: Header = Header::default();
@@ -723,7 +745,7 @@ mod tests {
 
 	#[test]
 	fn can_verify_block_family_gas_fail() {
-		let engine = new_morden().engine;
+		let engine = test_spec().engine;
 		let mut header: Header = Header::default();
 		header.set_number(2);
 		header.set_difficulty(U256::from_str("0000000000000000000000000000000000000000000000000000000000020000").unwrap());
@@ -753,7 +775,7 @@ mod tests {
 	fn difficulty_frontier() {
 		let spec = new_homestead_test();
 		let ethparams = get_default_ethash_params();
-		let ethash = Ethash::new(spec.params().clone(), ethparams, BTreeMap::new());
+		let ethash = Ethash::new(&::std::env::temp_dir(), spec.params().clone(), ethparams, BTreeMap::new());
 
 		let mut parent_header = Header::default();
 		parent_header.set_number(1000000);
@@ -771,7 +793,7 @@ mod tests {
 	fn difficulty_homestead() {
 		let spec = new_homestead_test();
 		let ethparams = get_default_ethash_params();
-		let ethash = Ethash::new(spec.params().clone(), ethparams, BTreeMap::new());
+		let ethash = Ethash::new(&::std::env::temp_dir(), spec.params().clone(), ethparams, BTreeMap::new());
 
 		let mut parent_header = Header::default();
 		parent_header.set_number(1500000);
@@ -828,7 +850,7 @@ mod tests {
 			ecip1010_pause_transition: 3000000,
 			..get_default_ethash_params()
 		};
-		let ethash = Ethash::new(spec.params().clone(), ethparams, BTreeMap::new());
+		let ethash = Ethash::new(&::std::env::temp_dir(), spec.params().clone(), ethparams, BTreeMap::new());
 
 		let mut parent_header = Header::default();
 		parent_header.set_number(3500000);
@@ -862,7 +884,7 @@ mod tests {
 			ecip1010_continue_transition: 5000000,
 			..get_default_ethash_params()
 		};
-		let ethash = Ethash::new(spec.params().clone(), ethparams, BTreeMap::new());
+		let ethash = Ethash::new(&::std::env::temp_dir(), spec.params().clone(), ethparams, BTreeMap::new());
 
 		let mut parent_header = Header::default();
 		parent_header.set_number(5000102);
@@ -907,7 +929,8 @@ mod tests {
 	#[test]
 	fn gas_limit_is_multiple_of_determinant() {
 		let spec = new_homestead_test();
-		let ethash = Ethash::new(spec.params().clone(), get_default_ethash_params(), BTreeMap::new());
+		let ethparams = get_default_ethash_params();
+		let ethash = Ethash::new(&::std::env::temp_dir(), spec.params().clone(), ethparams, BTreeMap::new());
 		let mut parent = Header::new();
 		let mut header = Header::new();
 		header.set_number(1);
@@ -951,7 +974,7 @@ mod tests {
 	fn difficulty_max_timestamp() {
 		let spec = new_homestead_test();
 		let ethparams = get_default_ethash_params();
-		let ethash = Ethash::new(spec.params().clone(), ethparams, BTreeMap::new());
+		let ethash = Ethash::new(&::std::env::temp_dir(), spec.params().clone(), ethparams, BTreeMap::new());
 
 		let mut parent_header = Header::default();
 		parent_header.set_number(1000000);
@@ -979,7 +1002,7 @@ mod tests {
 		header.set_number(parent_header.number() + 1);
 		header.set_gas_limit(100_001.into());
 		header.set_difficulty(ethparams.minimum_difficulty);
-		let ethash = Ethash::new(spec.params().clone(), ethparams, BTreeMap::new());
+		let ethash = Ethash::new(&::std::env::temp_dir(), spec.params().clone(), ethparams, BTreeMap::new());
 		assert!(ethash.verify_block_family(&header, &parent_header, None).is_ok());
 
 		parent_header.set_number(9);
@@ -1005,7 +1028,7 @@ mod tests {
 	#[test]
 	fn rejects_transactions_below_min_gas_price() {
 		use ethkey::{Generator, Random};
-		use types::transaction::{Transaction, Action};
+		use transaction::{Transaction, Action};
 
 		let spec = new_homestead_test();
 		let mut ethparams = get_default_ethash_params();
@@ -1034,7 +1057,7 @@ mod tests {
 			nonce: U256::zero(),
 		}.sign(keypair.secret(), None).into();
 
-		let ethash = Ethash::new(spec.params().clone(), ethparams, BTreeMap::new());
+		let ethash = Ethash::new(&::std::env::temp_dir(), spec.params().clone(), ethparams, BTreeMap::new());
 		assert!(ethash.verify_transaction_basic(&tx1, &header).is_ok());
 		assert!(ethash.verify_transaction_basic(&tx2, &header).is_ok());
 

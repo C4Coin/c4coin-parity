@@ -23,7 +23,7 @@ use account_provider::AccountProvider;
 use block::*;
 use builtin::Builtin;
 use spec::CommonParams;
-use engines::{Engine, EngineError, Seal, Call, EpochChange};
+use engines::{Engine, Seal, Call, ConstructedVerifier, EngineError};
 use error::{BlockError, Error};
 use evm::Schedule;
 use ethjson;
@@ -51,12 +51,10 @@ impl From<ethjson::spec::BasicAuthorityParams> for BasicAuthorityParams {
 }
 
 struct EpochVerifier {
-	epoch_number: u64,
 	list: SimpleList,
 }
 
 impl super::EpochVerifier for EpochVerifier {
-	fn epoch_number(&self) -> u64 { self.epoch_number.clone() }
 	fn verify_light(&self, header: &Header) -> Result<(), Error> {
 		verify_external(header, &self.list)
 	}
@@ -84,7 +82,7 @@ pub struct BasicAuthority {
 	params: CommonParams,
 	gas_limit_bound_divisor: U256,
 	builtins: BTreeMap<Address, Builtin>,
-	signer: EngineSigner,
+	signer: RwLock<EngineSigner>,
 	validators: Box<ValidatorSet>,
 }
 
@@ -131,7 +129,7 @@ impl Engine for BasicAuthority {
 	}
 
 	fn seals_internally(&self) -> Option<bool> {
-		Some(self.signer.address() != Address::default())
+		Some(self.signer.read().is_some())
 	}
 
 	/// Attempt to seal the block internally.
@@ -140,8 +138,8 @@ impl Engine for BasicAuthority {
 		let author = header.author();
 		if self.validators.contains(header.parent_hash(), author) {
 			// account should be pernamently unlocked, otherwise sealing will fail
-			if let Ok(signature) = self.signer.sign(header.bare_hash()) {
-				return Seal::Regular(vec![::rlp::encode(&(&H520::from(signature) as &[u8])).to_vec()]);
+			if let Ok(signature) = self.sign(header.bare_hash()) {
+				return Seal::Regular(vec![::rlp::encode(&(&H520::from(signature) as &[u8])).into_vec()]);
 			} else {
 				trace!(target: "basicauthority", "generate_seal: FAIL: accounts secret key unavailable");
 			}
@@ -187,26 +185,54 @@ impl Engine for BasicAuthority {
 		verify_external(header, &*self.validators)
 	}
 
-	// the proofs we need just allow us to get the full validator set.
-	fn epoch_proof(&self, header: &Header, caller: &Call) -> Result<Bytes, Error> {
-		self.validators.epoch_proof(header, caller)
-			.map_err(|e| EngineError::InsufficientProof(e).into())
+	fn genesis_epoch_data(&self, header: &Header, call: &Call) -> Result<Vec<u8>, String> {
+		self.validators.genesis_epoch_data(header, call)
 	}
 
-	fn is_epoch_end(&self, header: &Header, block: Option<&[u8]>, receipts: Option<&[::receipt::Receipt]>)
-		-> EpochChange
+	#[cfg(not(test))]
+	fn signals_epoch_end(&self, _header: &Header, _block: Option<&[u8]>, _receipts: Option<&[::receipt::Receipt]>)
+		-> super::EpochChange
 	{
-		self.validators.is_epoch_end(header, block, receipts)
+		// don't bother signalling even though a contract might try.
+		super::EpochChange::No
 	}
 
-	fn epoch_verifier(&self, header: &Header, proof: &[u8]) -> Result<Box<super::EpochVerifier>, Error> {
-		// extract a simple list from the proof.
-		let (num, simple_list) = self.validators.epoch_set(header, proof)?;
+	#[cfg(test)]
+	fn signals_epoch_end(&self, header: &Header, block: Option<&[u8]>, receipts: Option<&[::receipt::Receipt]>)
+		-> super::EpochChange
+	{
+		// in test mode, always signal even though they don't be finalized.
+		let first = header.number() == 0;
+		self.validators.signals_epoch_end(first, header, block, receipts)
+	}
 
-		Ok(Box::new(EpochVerifier {
-			epoch_number: num,
-			list: simple_list,
-		}))
+	fn is_epoch_end(
+		&self,
+		chain_head: &Header,
+		_chain: &super::Headers,
+		_transition_store: &super::PendingTransitionStore,
+	) -> Option<Vec<u8>> {
+		let first = chain_head.number() == 0;
+
+		// finality never occurs so only apply immediate transitions.
+		self.validators.is_epoch_end(first, chain_head)
+	}
+
+	fn epoch_verifier<'a>(&self, header: &Header, proof: &'a [u8]) -> ConstructedVerifier<'a> {
+		let first = header.number() == 0;
+
+		match self.validators.epoch_set(first, self, header.number(), proof) {
+			Ok((list, finalize)) => {
+				let verifier = Box::new(EpochVerifier { list: list });
+
+				// our epoch verifier will ensure no unverified verifier is ever verified.
+				match finalize {
+					Some(finalize) => ConstructedVerifier::Unconfirmed(verifier, proof, finalize),
+					None => ConstructedVerifier::Trusted(verifier),
+				}
+			}
+			Err(e) => ConstructedVerifier::Err(e),
+		}
 	}
 
 	fn register_client(&self, client: Weak<Client>) {
@@ -214,15 +240,15 @@ impl Engine for BasicAuthority {
 	}
 
 	fn set_signer(&self, ap: Arc<AccountProvider>, address: Address, password: String) {
-		self.signer.set(ap, address, password);
+		self.signer.write().set(ap, address, password);
 	}
 
 	fn sign(&self, hash: H256) -> Result<Signature, Error> {
-		self.signer.sign(hash).map_err(Into::into)
+		self.signer.read().sign(hash).map_err(Into::into)
 	}
 
 	fn snapshot_components(&self) -> Option<Box<::snapshot::SnapshotComponents>> {
-		Some(Box::new(::snapshot::PoaSnapshot))
+		None
 	}
 }
 
@@ -240,7 +266,7 @@ mod tests {
 	/// Create a new test chain spec with `BasicAuthority` consensus engine.
 	fn new_test_authority() -> Spec {
 		let bytes: &[u8] = include_bytes!("../../res/basic_authority.json");
-		Spec::load(bytes).expect("invalid chain spec")
+		Spec::load(::std::env::temp_dir(), bytes).expect("invalid chain spec")
 	}
 
 	#[test]
@@ -275,7 +301,7 @@ mod tests {
 	fn can_do_signature_verification_fail() {
 		let engine = new_test_authority().engine;
 		let mut header: Header = Header::default();
-		header.set_seal(vec![::rlp::encode(&H520::default()).to_vec()]);
+		header.set_seal(vec![::rlp::encode(&H520::default()).into_vec()]);
 
 		let verify_result = engine.verify_block_family(&header, &Default::default(), None);
 		assert!(verify_result.is_err());
@@ -292,7 +318,7 @@ mod tests {
 		let genesis_header = spec.genesis_header();
 		let db = spec.ensure_db_good(get_temp_state_db(), &Default::default()).unwrap();
 		let last_hashes = Arc::new(vec![genesis_header.hash()]);
-		let b = OpenBlock::new(engine, Default::default(), false, db, &genesis_header, last_hashes, addr, (3141562.into(), 31415620.into()), vec![]).unwrap();
+		let b = OpenBlock::new(engine, Default::default(), false, db, &genesis_header, last_hashes, addr, (3141562.into(), 31415620.into()), vec![], false).unwrap();
 		let b = b.close_and_lock();
 		if let Seal::Regular(seal) = engine.generate_seal(b.block()) {
 			assert!(b.try_seal(engine, seal).is_ok());

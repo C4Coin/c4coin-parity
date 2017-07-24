@@ -17,6 +17,7 @@
 //! Test client.
 
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrder};
+use rustc_hex::FromHex;
 use util::*;
 use rlp::*;
 use ethkey::{Generator, Random};
@@ -43,7 +44,7 @@ use types::mode::Mode;
 use types::pruning_info::PruningInfo;
 
 use verification::queue::QueueInfo;
-use block::{OpenBlock, SealedBlock};
+use block::{OpenBlock, SealedBlock, ClosedBlock};
 use executive::Executed;
 use error::CallError;
 use trace::LocalizedTrace;
@@ -372,11 +373,16 @@ impl MiningBlockChainClient for TestBlockChainClient {
 			Arc::new(last_hashes),
 			author,
 			gas_range_target,
-			extra_data
+			extra_data,
+			false,
 		).expect("Opening block for tests will not fail.");
 		// TODO [todr] Override timestamp for predictability (set_timestamp_now kind of sucks)
 		open_block.set_timestamp(*self.latest_block_timestamp.read());
 		open_block
+	}
+
+	fn reopen_block(&self, block: ClosedBlock) -> OpenBlock {
+		block.reopen(&*self.spec.engine)
 	}
 
 	fn vm_factory(&self) -> &EvmFactory {
@@ -786,4 +792,8 @@ impl EngineClient for TestBlockChainClient {
 	}
 
 	fn broadcast_consensus_message(&self, _message: Bytes) {}
+
+	fn epoch_transition_for(&self, _block_hash: H256) -> Option<::engines::EpochTransition> {
+		None
+	}
 }

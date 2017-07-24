@@ -108,11 +108,11 @@ fn generate_functions(contract: &Contract) -> Result<String, Error> {
 /// Outputs: {abi_outputs:?}
 pub fn {snake_name}<F, U>(&self, call: F, {params}) -> BoxFuture<{output_type}, String>
 	where
-	    F: Fn(util::Address, Vec<u8>) -> U,
+	    F: FnOnce(util::Address, Vec<u8>) -> U,
 	    U: IntoFuture<Item=Vec<u8>, Error=String>,
 		U::Future: Send + 'static
 {{
-	let function = self.contract.function(r#"{abi_name}"#.to_string())
+	let function = self.contract.function(r#"{abi_name}"#)
 		.expect("function existence checked at compile-time; qed");
 	let call_addr = self.address;
 

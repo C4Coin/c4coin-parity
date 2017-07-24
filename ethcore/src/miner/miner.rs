@@ -33,9 +33,10 @@ use miner::{MinerService, MinerStatus, TransactionQueue, RemovalReason, Transact
 	AccountDetails, TransactionOrigin};
 use miner::banning_queue::{BanningTransactionQueue, Threshold};
 use miner::work_notify::{WorkPoster, NotifyWork};
-use miner::price_info::PriceInfo;
 use miner::local_transactions::{Status as LocalTransactionStatus};
 use miner::service_transaction_checker::ServiceTransactionChecker;
+use price_info::{Client as PriceInfoClient, PriceInfo};
+use price_info::fetch::Client as FetchClient;
 use header::BlockNumber;
 
 /// Different possible definitions for pending transaction set.
@@ -88,6 +89,8 @@ pub struct MinerOptions {
 	pub reseal_on_external_tx: bool,
 	/// Reseal on receipt of new local transactions.
 	pub reseal_on_own_tx: bool,
+	/// Reseal when new uncle block has been imported.
+	pub reseal_on_uncle: bool,
 	/// Minimum period between transaction-inspired reseals.
 	pub reseal_min_period: Duration,
 	/// Maximum period between blocks (enables force sealing after that).
@@ -96,6 +99,8 @@ pub struct MinerOptions {
 	pub tx_gas_limit: U256,
 	/// Maximum size of the transaction queue.
 	pub tx_queue_size: usize,
+	/// Maximum memory usage of transactions in the queue (current / future).
+	pub tx_queue_memory_limit: Option<usize>,
 	/// Strategy to use for prioritizing transactions in the queue.
 	pub tx_queue_strategy: PrioritizationStrategy,
 	/// Whether we should fallback to providing all the queue's transactions or just pending.
@@ -119,9 +124,11 @@ impl Default for MinerOptions {
 			force_sealing: false,
 			reseal_on_external_tx: false,
 			reseal_on_own_tx: true,
+			reseal_on_uncle: false,
 			tx_gas_limit: !U256::zero(),
-			tx_queue_size: 1024,
-			tx_queue_gas_limit: GasLimit::Auto,
+			tx_queue_size: 8192,
+			tx_queue_memory_limit: Some(2 * 1024 * 1024),
+			tx_queue_gas_limit: GasLimit::None,
 			tx_queue_strategy: PrioritizationStrategy::GasPriceOnly,
 			pending_set: PendingSet::AlwaysQueue,
 			reseal_min_period: Duration::from_secs(2),
@@ -148,6 +155,7 @@ pub struct GasPriceCalibratorOptions {
 pub struct GasPriceCalibrator {
 	options: GasPriceCalibratorOptions,
 	next_calibration: Instant,
+	price_info: PriceInfoClient,
 }
 
 impl GasPriceCalibrator {
@@ -157,7 +165,7 @@ impl GasPriceCalibrator {
 			let usd_per_tx = self.options.usd_per_tx;
 			trace!(target: "miner", "Getting price info");
 
-			PriceInfo::get(move |price: PriceInfo| {
+			self.price_info.get(move |price: PriceInfo| {
 				trace!(target: "miner", "Price info arrived: {:?}", price);
 				let usd_per_eth = price.ethusd;
 				let wei_per_usd: f32 = 1.0e18 / usd_per_eth;
@@ -183,10 +191,11 @@ pub enum GasPricer {
 
 impl GasPricer {
 	/// Create a new Calibrated `GasPricer`.
-	pub fn new_calibrated(options: GasPriceCalibratorOptions) -> GasPricer {
+	pub fn new_calibrated(options: GasPriceCalibratorOptions, fetch: FetchClient) -> GasPricer {
 		GasPricer::Calibrated(GasPriceCalibrator {
 			options: options,
 			next_calibration: Instant::now(),
+			price_info: PriceInfoClient::new(fetch),
 		})
 	}
 
@@ -249,8 +258,15 @@ impl Miner {
 			GasLimit::Fixed(ref limit) => *limit,
 			_ => !U256::zero(),
 		};
+		let mem_limit = options.tx_queue_memory_limit.unwrap_or_else(usize::max_value);
 
-		let txq = TransactionQueue::with_limits(options.tx_queue_strategy, options.tx_queue_size, gas_limit, options.tx_gas_limit);
+		let txq = TransactionQueue::with_limits(
+			options.tx_queue_strategy,
+			options.tx_queue_size,
+			mem_limit,
+			gas_limit,
+			options.tx_gas_limit
+		);
 		let txq = match options.tx_queue_banning {
 			Banning::Disabled => BanningTransactionQueue::new(txq, Threshold::NeverBan, Duration::from_secs(180)),
 			Banning::Enabled { ban_duration, min_offends, .. } => BanningTransactionQueue::new(
@@ -328,7 +344,10 @@ impl Miner {
 		let _timer = PerfTimer::new("prepare_block");
 		let chain_info = chain.chain_info();
 		let (transactions, mut open_block, original_work_hash) = {
-			let transactions = {self.transaction_queue.read().top_transactions_at(chain_info.best_block_number, chain_info.best_block_timestamp)};
+			let nonce_cap = if chain_info.best_block_number + 1 >= self.engine.params().dust_protection_transition {
+				Some((self.engine.params().nonce_cap_increment * (chain_info.best_block_number + 1)).into())
+			} else { None };
+			let transactions = {self.transaction_queue.read().top_transactions_at(chain_info.best_block_number, chain_info.best_block_timestamp, nonce_cap)};
 			let mut sealing_work = self.sealing_work.lock();
 			let last_work_hash = sealing_work.queue.peek_last_ref().map(|pb| pb.block().fields().header.hash());
 			let best_hash = chain_info.best_block_hash;
@@ -344,7 +363,7 @@ impl Miner {
 				Some(old_block) => {
 					trace!(target: "miner", "prepare_block: Already have previous work; updating and returning");
 					// add transactions to old_block
-					old_block.reopen(&*self.engine)
+					chain.reopen_block(old_block)
 				}
 				None => {
 					// block not found - create it.
@@ -363,7 +382,6 @@ impl Miner {
 		let mut transactions_to_penalize = HashSet::new();
 		let block_number = open_block.block().fields().header.number();
 
-		// TODO Push new uncles too.
 		let mut tx_count: usize = 0;
 		let tx_total = transactions.len();
 		for tx in transactions {
@@ -799,9 +817,15 @@ impl MinerService for Miner {
 				// | Make sure to release the locks before calling that method.             |
 				// --------------------------------------------------------------------------
 				self.engine.set_signer(ap.clone(), address, password);
+				Ok(())
+			} else {
+				warn!(target: "miner", "No account provider");
+				Err(AccountError::NotFound)
 			}
+		} else {
+			warn!(target: "miner", "Cannot set engine signer on a PoW chain.");
+			Err(AccountError::InappropriateChain)
 		}
-		Ok(())
 	}
 
 	fn set_extra_data(&self, extra_data: Bytes) {
@@ -1048,7 +1072,7 @@ impl MinerService for Miner {
 								Action::Call(_) => None,
 								Action::Create => {
 									let sender = tx.sender();
-									Some(contract_address(self.engine.create_address_scheme(pending.header().number()), &sender, &tx.nonce, &tx.data.sha3()))
+									Some(contract_address(self.engine.create_address_scheme(pending.header().number()), &sender, &tx.nonce, &tx.data).0)
 								}
 							},
 							logs: receipt.logs.clone(),
@@ -1080,6 +1104,10 @@ impl MinerService for Miner {
 		self.transaction_queue.read().last_nonce(address)
 	}
 
+	fn can_produce_work_package(&self) -> bool {
+		self.engine.seals_internally().is_none()
+	}
+
 	/// Update sealing if required.
 	/// Prepare the block and work if the Engine does not seal internally.
 	fn update_sealing(&self, chain: &MiningBlockChainClient) {
@@ -1108,7 +1136,7 @@ impl MinerService for Miner {
 		}
 	}
 
-	fn is_sealing(&self) -> bool {
+	fn is_currently_sealing(&self) -> bool {
 		self.sealing_work.lock().queue.is_in_use()
 	}
 
@@ -1150,11 +1178,10 @@ impl MinerService for Miner {
 		})
 	}
 
-	fn chain_new_blocks(&self, chain: &MiningBlockChainClient, _imported: &[H256], _invalid: &[H256], enacted: &[H256], retracted: &[H256]) {
+	fn chain_new_blocks(&self, chain: &MiningBlockChainClient, imported: &[H256], _invalid: &[H256], enacted: &[H256], retracted: &[H256]) {
 		trace!(target: "miner", "chain_new_blocks");
 
-		// 1. We ignore blocks that were `imported` (because it means that they are not in canon-chain, and transactions
-		//	  should be still available in the queue.
+		// 1. We ignore blocks that were `imported` unless resealing on new uncles is enabled.
 		// 2. We ignore blocks that are `invalid` because it doesn't have any meaning in terms of the transactions that
 		//    are in those blocks
 
@@ -1189,7 +1216,7 @@ impl MinerService for Miner {
 			transaction_queue.remove_old(&fetch_account, time);
 		}
 
-		if enacted.len() > 0 {
+		if enacted.len() > 0 || (imported.len() > 0 && self.options.reseal_on_uncle) {
 			// --------------------------------------------------------------------------
 			// | NOTE Code below requires transaction_queue and sealing_work locks.     |
 			// | Make sure to release the locks before calling that method.             |
@@ -1258,16 +1285,17 @@ mod tests {
 
 	use std::sync::Arc;
 	use std::time::Duration;
+	use rustc_hex::FromHex;
 	use super::super::{MinerService, PrioritizationStrategy};
 	use super::*;
 	use block::IsBlock;
-	use util::{U256, FromHex};
+	use util::U256;
 	use ethkey::{Generator, Random};
 	use client::{BlockChainClient, TestBlockChainClient, EachBlockWith, TransactionImportResult};
 	use header::BlockNumber;
-	use types::transaction::{SignedTransaction, Transaction, PendingTransaction, Action};
+	use transaction::{SignedTransaction, Transaction, PendingTransaction, Action};
 	use spec::Spec;
-	use tests::helpers::{generate_dummy_client};
+	use tests::helpers::{generate_dummy_client, generate_dummy_client_with_spec_and_accounts};
 
 	#[test]
 	fn should_prepare_block_to_seal() {
@@ -1308,10 +1336,12 @@ mod tests {
 				force_sealing: false,
 				reseal_on_external_tx: false,
 				reseal_on_own_tx: true,
+				reseal_on_uncle: false,
 				reseal_min_period: Duration::from_secs(5),
 				reseal_max_period: Duration::from_secs(120),
 				tx_gas_limit: !U256::zero(),
 				tx_queue_size: 1024,
+				tx_queue_memory_limit: None,
 				tx_queue_gas_limit: GasLimit::None,
 				tx_queue_strategy: PrioritizationStrategy::GasFactorAndGasPrice,
 				pending_set: PendingSet::AlwaysSealing,
@@ -1433,5 +1463,23 @@ mod tests {
 		client.flush_queue();
 		assert!(miner.pending_block().is_none());
 		assert_eq!(client.chain_info().best_block_number, 4 as BlockNumber);
+	}
+
+	#[test]
+	fn should_fail_setting_engine_signer_on_pow() {
+		let spec = Spec::new_pow_test_spec;
+		let tap = Arc::new(AccountProvider::transient_provider());
+		let addr = tap.insert_account("1".sha3().into(), "").unwrap();
+		let client = generate_dummy_client_with_spec_and_accounts(spec, Some(tap.clone()));
+		assert!(match client.miner().set_engine_signer(addr, "".into()) { Err(AccountError::InappropriateChain) => true, _ => false })
+	}
+
+	#[test]
+	fn should_fail_setting_engine_signer_without_account_provider() {
+		let spec = Spec::new_instant;
+		let tap = Arc::new(AccountProvider::transient_provider());
+		let addr = tap.insert_account("1".sha3().into(), "").unwrap();
+		let client = generate_dummy_client_with_spec_and_accounts(spec, None);
+		assert!(match client.miner().set_engine_signer(addr, "".into()) { Err(AccountError::NotFound) => true, _ => false });
 	}
 }

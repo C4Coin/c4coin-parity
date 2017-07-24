@@ -20,7 +20,7 @@ use std::io::{BufReader, BufRead};
 use std::time::{Instant, Duration};
 use std::thread::sleep;
 use std::sync::Arc;
-use rustc_serialize::hex::FromHex;
+use rustc_hex::FromHex;
 use util::{ToPretty, U256, H256, Address, Hashable};
 use rlp::PayloadInfo;
 use ethcore::service::ClientService;
@@ -29,7 +29,7 @@ use ethcore::error::ImportError;
 use ethcore::miner::Miner;
 use ethcore::verification::queue::VerifierSettings;
 use cache::CacheConfig;
-use informant::{Informant, MillisecondDuration};
+use informant::{Informant, FullNodeInformantData, MillisecondDuration};
 use params::{SpecType, Pruning, Switch, tracing_switch_to_bool, fatdb_switch_to_bool};
 use helpers::{to_client_config, execute_upgrades};
 use dir::Directories;
@@ -148,7 +148,7 @@ fn execute_import(cmd: ImportBlockchain) -> Result<(), String> {
 	let timer = Instant::now();
 
 	// load spec file
-	let spec = cmd.spec.spec()?;
+	let spec = cmd.spec.spec(&cmd.dirs.cache)?;
 
 	// load genesis hash
 	let genesis_hash = spec.genesis_header().hash();
@@ -238,7 +238,17 @@ fn execute_import(cmd: ImportBlockchain) -> Result<(), String> {
 		}
 	};
 
-	let informant = Arc::new(Informant::new(client.clone(), None, None, None, None, cmd.with_color));
+	let informant = Arc::new(Informant::new(
+		FullNodeInformantData {
+			client: client.clone(),
+			sync: None,
+			net: None,
+		},
+		None,
+		None,
+		cmd.with_color,
+	));
+
 	service.register_io_handler(informant).map_err(|_| "Unable to register informant handler".to_owned())?;
 
 	let do_import = |bytes| {
@@ -315,11 +325,12 @@ fn start_client(
 	fat_db: Switch,
 	compaction: DatabaseCompactionProfile,
 	wal: bool,
-	cache_config: CacheConfig
+	cache_config: CacheConfig,
+	require_fat_db: bool,
 ) -> Result<ClientService, String> {
 
 	// load spec file
-	let spec = spec.spec()?;
+	let spec = spec.spec(&dirs.cache)?;
 
 	// load genesis hash
 	let genesis_hash = spec.genesis_header().hash();
@@ -343,6 +354,9 @@ fn start_client(
 
 	// check if fatdb is on
 	let fat_db = fatdb_switch_to_bool(fat_db, &user_defaults, algorithm)?;
+	if !fat_db && require_fat_db {
+		return Err("This command requires Parity to be synced with --fat-db on.".to_owned());
+	}
 
 	// prepare client and snapshot paths.
 	let client_path = db_dirs.client_path(algorithm);
@@ -395,7 +409,8 @@ fn execute_export(cmd: ExportBlockchain) -> Result<(), String> {
 		cmd.fat_db,
 		cmd.compaction,
 		cmd.wal,
-		cmd.cache_config
+		cmd.cache_config,
+		false,
 	)?;
 	let format = cmd.format.unwrap_or_default();
 
@@ -435,7 +450,8 @@ fn execute_export_state(cmd: ExportState) -> Result<(), String> {
 		cmd.fat_db,
 		cmd.compaction,
 		cmd.wal,
-		cmd.cache_config
+		cmd.cache_config,
+		true
 	)?;
 
 	let client = service.client();
@@ -511,14 +527,16 @@ fn execute_export_state(cmd: ExportState) -> Result<(), String> {
 }
 
 pub fn kill_db(cmd: KillBlockchain) -> Result<(), String> {
-	let spec = cmd.spec.spec()?;
+	let spec = cmd.spec.spec(&cmd.dirs.cache)?;
 	let genesis_hash = spec.genesis_header().hash();
 	let db_dirs = cmd.dirs.database(genesis_hash, None, spec.data_dir);
 	let user_defaults_path = db_dirs.user_defaults_path();
-	let user_defaults = UserDefaults::load(&user_defaults_path)?;
+	let mut user_defaults = UserDefaults::load(&user_defaults_path)?;
 	let algorithm = cmd.pruning.to_algorithm(&user_defaults);
 	let dir = db_dirs.db_path(algorithm);
 	fs::remove_dir_all(&dir).map_err(|e| format!("Error removing database: {:?}", e))?;
+	user_defaults.is_first_launch = true;
+	user_defaults.save(&user_defaults_path)?;
 	info!("Database deleted.");
 	Ok(())
 }

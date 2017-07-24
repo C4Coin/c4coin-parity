@@ -46,6 +46,8 @@ of RPC APIs.
 If you run into an issue while using parity, feel free to file one in this repository
 or hop on our [gitter chat room][gitter-url] to ask a question. We are glad to help!
 
+**For security-critical issues**, please refer to the security policy outlined in `SECURITY.MD`.
+
 Parity's current release is 1.6. You can download it at https://github.com/paritytech/parity/releases or follow the instructions
 below to build from source.
 
@@ -81,11 +83,15 @@ Once you have rustup, install parity or download and build from source
 
 ----
 
-## Quick build and install
+## Install from the snap store
+
+In any of the [supported Linux distros](https://snapcraft.io/docs/core/install):
 
 ```bash
-cargo install --git https://github.com/paritytech/parity.git parity
+sudo snap install parity --edge
 ```
+
+(Note that this is an experimental and unstable release, at the moment)
 
 ----
 
