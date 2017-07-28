@@ -34,7 +34,39 @@
     "maximumExtraDataSize": "0x20",
     "minGasLimit": "0x1388",
     "networkID" : "0x2A",
-    "validateReceiptsTransition" : 1000000
+    "validateReceiptsTransition" : 1000000,
+    "virtualMachine": {
+      "hybrid": {
+        "webAssembly": {
+          "magic": "0x6d736100",
+          "opcodes": {
+            "default": 10,
+            "rules": {
+              "numeric": 200,
+              "div": 50
+            }
+          },
+          "staticRegion": 5,
+          "memory": {
+            "allocator": {
+              "arena": {
+                "cost": 1,
+                "maxMemory": 16777216
+              }
+            },
+            "stack": 5242880
+          },
+          "storage": {
+            "read": 50,
+            "write": 200
+          }
+        },
+        "evm": {
+          "maxDepth": 20,
+          "allowWasmCall": true
+        }
+      }
+    }
   },
   "genesis": {
     "seal": {
@@ -59,5 +91,5 @@
     "enode://7e2e7f00784f516939f94e22bdc6cf96153603ca2b5df1c7cc0f90a38e7a2f218ffb1c05b156835e8b49086d11fdd1b3e2965be16baa55204167aa9bf536a4d9@52.243.47.56:30303",
     "enode://d51b3e98bf35addf2f1d0ea1ffc90483e24d7c60b0fb3be1701e818f3d6778c06e53fdec737a534fe222956296f9d6e909baa025916a94601897e5c7136a7d95@40.71.221.215:30303",
     "enode://419d42e300e8fd379ff6d045d93d7e66a091441e7b3c9f1d3d10088d8634ad37721e6bf86148f78c3f1b9f1360dc566ca8ee830b2d2079bc9f7171ea6152bb64@52.166.117.77:30303"
-  ]
+  ],
 }
