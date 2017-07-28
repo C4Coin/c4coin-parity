@@ -19,6 +19,7 @@
 mod genesis;
 mod seal;
 pub mod spec;
+pub mod vm;
 
 pub use self::spec::*;
 pub use self::genesis::Genesis;

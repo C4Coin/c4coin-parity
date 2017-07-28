@@ -106,6 +106,7 @@ extern crate semver;
 extern crate stats;
 extern crate time;
 extern crate transient_hashmap;
+extern crate wasm_utils;
 
 #[macro_use]
 extern crate log;
