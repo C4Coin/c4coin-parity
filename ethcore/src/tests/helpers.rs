@@ -41,15 +41,6 @@ use transaction::{Action, Transaction, SignedTransaction};
 use rlp::{self, RlpStream};
 use views::BlockView;
 
-#[cfg(feature = "json-tests")]
-pub enum ChainEra {
-	Frontier,
-	Homestead,
-	Eip150,
-	_Eip161,
-	TransitionTest,
-}
-
 pub struct TestEngine {
 	engine: Arc<Engine>,
 	max_depth: usize,
@@ -66,6 +57,13 @@ impl TestEngine {
 	pub fn new_byzantium() -> TestEngine {
 		TestEngine {
 			engine: ethereum::new_byzantium_test().engine,
+			max_depth: 0,
+		}
+	}
+
+	pub fn new_constaninople() -> TestEngine {
+		TestEngine {
+			engine: ethereum::new_constaninople_test().engine,
 			max_depth: 0,
 		}
 	}
