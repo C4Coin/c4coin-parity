@@ -120,7 +120,7 @@ impl CommonParams {
 	}
 
 	/// Apply common spec config parameters to the schedule.
- 	pub fn update_schedule(&self, block_number: u64, schedule: &mut ::vm::Schedule) {
+	pub fn update_schedule(&self, block_number: u64, schedule: &mut ::vm::Schedule) {
 		schedule.have_create2 = block_number >= self.eip86_transition;
 		schedule.have_revert = block_number >= self.eip140_transition;
 		schedule.have_static_call = block_number >= self.eip214_transition;
@@ -334,6 +334,12 @@ impl Spec {
 		}
 
 		for (address, account) in self.genesis_state.get().iter() {
+			if let Some(ref builtin) = self.engine.builtins().get(address) {
+				if !builtin.is_active(0) {
+					// don't add builtins that are activated post-genesis
+					continue;
+				}
+			}
 			db.note_non_null_account(address);
 			account.insert_additional(
 				&mut *factories.accountdb.create(db.as_hashdb_mut(), keccak(address)),
