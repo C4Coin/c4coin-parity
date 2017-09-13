@@ -329,6 +329,12 @@ impl Spec {
 			let mut t = factories.trie.create(db.as_hashdb_mut(), &mut root);
 
 			for (address, account) in self.genesis_state.get().iter() {
+				if let Some(ref builtin) = self.engine.builtins().get(address) {
+					if !builtin.is_active(0) {
+						// don't add builtins that are activated post-genesis
+						continue;
+					}
+				}
 				t.insert(&**address, &account.rlp())?;
 			}
 		}
