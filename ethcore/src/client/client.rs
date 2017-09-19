@@ -1979,6 +1979,7 @@ fn transaction_receipt(engine: &Engine, mut tx: LocalizedTransaction, mut receip
 		}).collect(),
 		log_bloom: receipt.log_bloom,
 		state_root: receipt.state_root,
+		status_code: receipt.status_code,
 	}
 }
 

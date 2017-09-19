@@ -88,7 +88,7 @@ impl Decodable for Receipt {
 			};
 
 			let first = rlp.at(0)?;
-			if first.is_data() && first.data()?.len() == 1 {
+			if first.is_data() && first.data()?.len() <= 1 {
 				receipt.status_code = Some(first.as_val()?);
 			} else {
 				receipt.state_root = Some(first.as_val()?);
@@ -123,6 +123,8 @@ pub struct RichReceipt {
 	pub log_bloom: LogBloom,
 	/// State root
 	pub state_root: Option<H256>,
+	/// Status byte. Optional before EIP-658.
+	pub status_code: Option<u8>,
 }
 
 /// Receipt with additional info.
@@ -148,6 +150,8 @@ pub struct LocalizedReceipt {
 	pub log_bloom: LogBloom,
 	/// State root
 	pub state_root: Option<H256>,
+	/// Status byte. Optional before EIP-658.
+	pub status_code: Option<u8>,
 }
 
 #[cfg(test)]

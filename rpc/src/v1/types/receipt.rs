@@ -49,6 +49,9 @@ pub struct Receipt {
 	/// Logs bloom
 	#[serde(rename="logsBloom")]
 	pub logs_bloom: H2048,
+	/// Status code
+	#[serde(rename="statusCode")]
+	pub status_code: Option<u8>,
 }
 
 impl From<LocalizedReceipt> for Receipt {
@@ -64,6 +67,7 @@ impl From<LocalizedReceipt> for Receipt {
 			logs: r.logs.into_iter().map(Into::into).collect(),
 			state_root: r.state_root.map(Into::into),
 			logs_bloom: r.log_bloom.into(),
+			status_code: r.status_code,
 		}
 	}
 }
@@ -81,6 +85,7 @@ impl From<RichReceipt> for Receipt {
 			logs: r.logs.into_iter().map(Into::into).collect(),
 			state_root: r.state_root.map(Into::into),
 			logs_bloom: r.log_bloom.into(),
+			status_code: r.status_code,
 		}
 	}
 }
@@ -98,6 +103,7 @@ impl From<EthReceipt> for Receipt {
 			logs: r.logs.into_iter().map(Into::into).collect(),
 			state_root: r.state_root.map(Into::into),
 			logs_bloom: r.log_bloom.into(),
+			status_code: r.status_code,
 		}
 	}
 }
