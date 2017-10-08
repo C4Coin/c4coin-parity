@@ -59,7 +59,7 @@ use log_entry::LocalizedLogEntry;
 use miner::{Miner, MinerService, TransactionImportResult};
 use native_contracts::Registry;
 use parking_lot::{Mutex, RwLock, MutexGuard};
-use private_transactions::Provider as PrivateTransactionsProvider;
+use private_transactions::{Provider as PrivateTransactionsProvider, SecretStoreEncryptor};
 use rand::OsRng;
 use receipt::{Receipt, LocalizedReceipt};
 use rlp::UntrustedRlp;
@@ -248,7 +248,7 @@ impl Client {
 			report: RwLock::new(Default::default()),
 			import_lock: Mutex::new(()),
 			miner: miner,
-			provider: Arc::new(PrivateTransactionsProvider::new()),
+			provider: Arc::new(PrivateTransactionsProvider::new(SecretStoreEncryptor::new()?)),
 			io_channel: Mutex::new(message_channel),
 			notify: RwLock::new(Vec::new()),
 			queue_transactions: AtomicUsize::new(0),
