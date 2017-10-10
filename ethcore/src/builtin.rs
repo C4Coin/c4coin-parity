@@ -104,12 +104,15 @@ impl Pricer for ModexpPricer {
 		}
 
 		let base_len = base_len.low_u64();
-		let exp_len = exp_len.low_u64();
 		let mod_len = mod_len.low_u64();
 		let m = max(mod_len, base_len);
 		if m == 0 {
 			return U256::zero();
 		}
+		if exp_len > max_len {
+			return U256::max_value();
+		}
+		let exp_len = exp_len.low_u64();
 		// read fist 32-byte word of the exponent.
 		let exp_low = if base_len + 96 >= input.len() as u64 { U256::zero() } else {
 			let mut buf = [0; 32];
@@ -320,6 +323,7 @@ impl Impl for Ripemd160 {
 // calculate modexp: exponentiation by squaring. the `num` crate has pow, but not modular.
 fn modexp(mut base: BigUint, mut exp: BigUint, modulus: BigUint) -> BigUint {
 	use num::Integer;
+
 
 	if modulus <= BigUint::one() { // n^m % 0 || n^m % 1
 		return BigUint::zero();
@@ -712,6 +716,24 @@ mod tests {
 			native: ethereum_builtin("modexp"),
 			activate_at: 0,
 		};
+
+		// test for potential exp len overflow
+		{
+			let input = FromHex::from_hex("\
+				00000000000000000000000000000000000000000000000000000000000000ff\
+				2a1e530000000000000000000000000000000000000000000000000000000000\
+				0000000000000000000000000000000000000000000000000000000000000000"
+				).unwrap();
+
+			let mut output = vec![0u8; 32];
+			let expected = FromHex::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap();
+			let expected_cost = U256::max_value();
+
+			f.execute(&input[..], &mut BytesRef::Fixed(&mut output[..])).expect("Builtin should fail");
+			assert_eq!(output, expected);
+			assert_eq!(f.cost(&input[..]), expected_cost.into());
+		}
+
 		// fermat's little theorem example.
 		{
 			let input = FromHex::from_hex("\
