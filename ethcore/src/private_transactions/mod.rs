@@ -24,7 +24,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Weak};
 use bigint::hash::H256;
 use bigint::prelude::U256;
-use util::Address;
+use util::{Address, OverlayDB};
+use util::kvdb::KeyValueDB;
 use executive::{Executive, TransactOptions};
 use executed::{Executed};
 use transaction::{SignedTransaction, Transaction, Action};
@@ -48,6 +49,7 @@ const DEFAULT_STUB_CONTRACT: &'static str = "6060604052341561000f57600080fd5b604
 
 /// Manager of private transactions
 pub struct Provider {
+	private_state: OverlayDB,
 	notify: RwLock<Vec<Weak<ChainNotify>>>,
 	private_transactions: Mutex<PrivateTransactions>,
 }
@@ -61,8 +63,11 @@ struct PrivateExecutionResult {
 
 impl Provider {
 	/// Create a new provider.
-	pub fn new() -> Self {
+	pub fn new(
+		db: Arc<KeyValueDB>
+	) -> Self {
 		Provider {
+			private_state: OverlayDB::new(db, ::db::COL_PRIVATE_TRANSACTIONS_STATE),
 			notify: RwLock::new(Vec::new()),
 			private_transactions: Mutex::new(PrivateTransactions::new()),
 		}
@@ -295,6 +300,9 @@ impl Provider {
 
 #[cfg(test)]
 mod test {
+	use std::sync::Arc;
+	use util::kvdb;
+	use util::journaldb::Algorithm;
 	use rustc_hex::FromHex;
 	use client::{BlockChainClient, BlockId};
 	use hash::keccak;
@@ -317,7 +325,7 @@ mod test {
 		let key3 = KeyPair::from_secret(Secret::from("0000000000000000000000000000000000000000000000000000000000000013")).unwrap();
 		let key4 = KeyPair::from_secret(Secret::from("0000000000000000000000000000000000000000000000000000000000000014")).unwrap();
 
-		let pm = Provider::new();
+		let pm = Provider::new(Arc::new(kvdb::in_memory(::db::NUM_COLUMNS.unwrap())));
 		let (address, _) = contract_address(CreateContractAddress::FromSenderAndNonce, &key1.address(), &0.into(), &[]);
 
 		trace!("Creating private contract");
