@@ -133,9 +133,11 @@ pub enum PrivateTransactionError {
 	/// State is not available.
 	StatePruned,
 	/// Wrong private transaction type.
-	BadTransactonType,
+	BadTransactionType,
 	/// Contract does not exist or was not created.
 	ContractDoesNotExist,
+	/// Private state DB write failed
+	DatabaseWriteError(String)
 }
 
 impl fmt::Display for PrivateTransactionError {
@@ -144,12 +146,13 @@ impl fmt::Display for PrivateTransactionError {
 		match *self {
 			Encrypt(ref msg) => f.write_fmt(format_args!("Encryption error. ({})", msg)),
 			Decrypt(ref msg) => f.write_fmt(format_args!("Decryption error. ({})", msg)),
-			NotAuthorised(address) => f.write_fmt(format_args!("Private trsnaction execution is not authorised for {}.", address)),
+			NotAuthorised(address) => f.write_fmt(format_args!("Private transaction execution is not authorised for {}.", address)),
 			TooManyContracts => f.write_str("Private transaction created too many contracts."),
 			Call(ref msg) => f.write_fmt(format_args!("Contract call error. ({})", msg)),
 			StatePruned => f.write_str("State is not available."),
-			BadTransactonType => f.write_str("Bad transaction type."),
+			BadTransactionType => f.write_str("Bad transaction type."),
 			ContractDoesNotExist => f.write_str("Private contract does not exist."),
+			DatabaseWriteError(ref msg) => f.write_fmt(format_args!("Error occurred while writing transaction on disk. ({})", msg)),
 		}
 	}
 }
