@@ -166,6 +166,19 @@ pub fn executor(machine: &Machine, vm_factory: &Factory, params: &ActionParams) 
 	}
 }
 
+pub fn split_code(machine: &Machine, code: &[u8]) -> (Vec<u8>, Option<Vec<u8>>) {
+	if machine.supports_wasm() && code.len() > 4 && &code[0..4] == WASM_MAGIC_NUMBER {
+		let code_size = ::parity_wasm::peek_size(code);
+		if code_size < code.len() {
+			(code[..code_size].to_vec(), Some(code[code_size..].to_vec()))
+		} else {
+			(code.to_vec(), None)
+		}
+	} else {
+		(code.to_vec(), None)
+	}
+}
+
 /// Transaction executor.
 pub struct Executive<'a, B: 'a + StateBackend> {
 	state: &'a mut State<B>,
@@ -297,6 +310,7 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 		let (result, output) = match t.action {
 			Action::Create => {
 				let (new_address, code_hash) = contract_address(self.machine.create_address_scheme(self.info.number), &sender, &nonce, &t.data);
+				let (code, data) = split_code(&self.machine, &t.data);
 				let params = ActionParams {
 					code_address: new_address.clone(),
 					code_hash: code_hash,
@@ -306,8 +320,8 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 					gas: init_gas,
 					gas_price: t.gas_price,
 					value: ActionValue::Transfer(t.value),
-					code: Some(Arc::new(t.data.clone())),
-					data: None,
+					code: Some(Arc::new(code)),
+					data: data,
 					call_type: CallType::None,
 				};
 				let mut out = if output_from_create { Some(vec![]) } else { None };

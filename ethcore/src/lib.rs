@@ -116,6 +116,7 @@ extern crate kvdb;
 extern crate util_error;
 extern crate snappy;
 extern crate migration;
+extern crate parity_wasm;
 
 #[macro_use]
 extern crate rlp_derive;
