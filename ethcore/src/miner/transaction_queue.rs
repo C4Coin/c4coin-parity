@@ -627,7 +627,7 @@ impl TransactionQueue {
 			by_address: Table::new(),
 			by_gas_price: Default::default(),
 			total_gas_limit: total_gas_limit >> FUTURE_QUEUE_LIMITS_SHIFT,
-			limit: limit >> FUTURE_QUEUE_LIMITS_SHIFT,
+			limit, // limit: limit >> FUTURE_QUEUE_LIMITS_SHIFT,
 			memory_limit: memory_limit >> FUTURE_QUEUE_LIMITS_SHIFT,
 		};
 
