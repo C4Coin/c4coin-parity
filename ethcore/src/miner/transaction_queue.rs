@@ -626,9 +626,9 @@ impl TransactionQueue {
 			by_priority: BTreeSet::new(),
 			by_address: Table::new(),
 			by_gas_price: Default::default(),
-			total_gas_limit: total_gas_limit >> FUTURE_QUEUE_LIMITS_SHIFT,
+			total_gas_limit, // : total_gas_limit >> FUTURE_QUEUE_LIMITS_SHIFT,
 			limit, // limit: limit >> FUTURE_QUEUE_LIMITS_SHIFT,
-			memory_limit: memory_limit >> FUTURE_QUEUE_LIMITS_SHIFT,
+			memory_limit, // : memory_limit >> FUTURE_QUEUE_LIMITS_SHIFT,
 		};
 
 		TransactionQueue {
@@ -649,7 +649,7 @@ impl TransactionQueue {
 	/// Set the new limit for `current` and `future` queue.
 	pub fn set_limit(&mut self, limit: usize) {
 		self.current.set_limit(limit);
-		self.future.set_limit(limit >> FUTURE_QUEUE_LIMITS_SHIFT);
+		self.future.set_limit(limit /*>> FUTURE_QUEUE_LIMITS_SHIFT*/);
 		// And ensure the limits
 		self.current.enforce_limit(&mut self.by_hash, &mut self.local_transactions);
 		self.future.enforce_limit(&mut self.by_hash, &mut self.local_transactions);
@@ -686,7 +686,7 @@ impl TransactionQueue {
 	/// Sets new total gas limit.
 	pub fn set_total_gas_limit(&mut self, total_gas_limit: U256) {
 		self.current.total_gas_limit = total_gas_limit;
-		self.future.total_gas_limit = total_gas_limit >> FUTURE_QUEUE_LIMITS_SHIFT;
+		self.future.total_gas_limit = total_gas_limit /* >> FUTURE_QUEUE_LIMITS_SHIFT */;
 		self.future.enforce_limit(&mut self.by_hash, &mut self.local_transactions);
 	}
 
