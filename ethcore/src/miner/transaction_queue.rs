@@ -1144,10 +1144,12 @@ impl TransactionQueue {
 			let tx = self.by_hash.get(&t.hash).expect("All transactions in `current` and `future` are always included in `by_hash`");
 			let sender = tx.sender();
 			if delayed.contains(&sender) {
+				trace!(target: "txqueue", "filtered tx nonce {} as delayed", tx.nonce());
 				continue;
 			}
 			if let Some(max_nonce) = nonce_cap {
 				if tx.nonce() >= max_nonce {
+					trace!(target: "txqueue", "filtered tx nonce {} as greater than {}", tx.nonce(), max_nonce);
 					continue;
 				}
 			}
