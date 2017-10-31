@@ -613,6 +613,13 @@ impl TransactionQueue {
 		total_gas_limit: U256,
 		tx_gas_limit: U256,
 	) -> Self {
+		trace!(target: "txqueue", "with_limits: limit: {}, memory_limit: {}, total_gas_limit: {}, tx_gas_limit: {}",
+			limit,
+			memory_limit,
+			total_gas_limit,
+			tx_gas_limit
+		);
+
 		let current = TransactionSet {
 			by_priority: BTreeSet::new(),
 			by_address: Table::new(),
