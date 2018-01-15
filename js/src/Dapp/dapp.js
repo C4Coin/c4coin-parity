@@ -40,7 +40,8 @@ export default class Dapp extends Component {
 
   state = {
     app: null,
-    loading: true
+    loading: true,
+    webview: null
   };
 
   store = DappsStore.get(this.context.api);
@@ -54,6 +55,15 @@ export default class Dapp extends Component {
     }
 
     this.loadApp(id);
+  }
+
+  componentWillUpdate (_, nextState) {
+    if (!this.state.webview && nextState.webview) {
+      // Log console.logs from webview
+      nextState.webview.addEventListener('console-message', (e) => {
+        console.log('[DAPP]', e.message);
+      });
+    }
   }
 
   componentWillReceiveProps (nextProps) {
@@ -134,15 +144,11 @@ export default class Dapp extends Component {
     }
 
     return (
-      <iframe
-        className={ styles.frame }
-        frameBorder={ 0 }
-        id='dappFrame'
-        name={ name }
-        onLoad={ this.onDappLoad }
-        sandbox='allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation'
-        scrolling='auto'
+      <webview
+        preload={ `file:///Users/amaurymartiny/Workspace/parity/js/.build/inject.js` }
+        ref={ (ref) => { if (!this.state.webview) { this.setState({ webview: ref }); } } }
         src={ `${src}${hash}` }
+        style={ { width: '100%' } }
       />
     );
   }

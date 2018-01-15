@@ -39,7 +39,7 @@
     "lint:js:fix": "eslint --fix --ignore-path .gitignore ./src/",
     "start": "npm run clean && npm install && npm run build:inject && npm run start:app",
     "start:app": "node webpack/dev.server",
-    "start:electron": "npm run build:app && electron .build/",
+    "start:electron": "npm run build:inject && npm run build:app && electron .build/",
     "test": "cross-env NODE_ENV=test mocha 'src/**/*.spec.js'",
     "test:coverage": "cross-env NODE_ENV=test istanbul cover _mocha -- 'src/**/*.spec.js'"
   },
