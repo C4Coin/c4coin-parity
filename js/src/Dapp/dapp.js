@@ -24,6 +24,7 @@ import viewsDapps from '@parity/shared/lib/config/dappsViews.json';
 import DappsStore from '@parity/shared/lib/mobx/dappsStore';
 import HistoryStore from '@parity/shared/lib/mobx/historyStore';
 
+import DappRequestsStore from '../DappRequests/store';
 import styles from './dapp.css';
 
 const internalDapps = [].concat(viewsDapps, builtinDapps);
@@ -58,10 +59,16 @@ export default class Dapp extends Component {
   }
 
   componentWillUpdate (_, nextState) {
-    if (!this.state.webview && nextState.webview) {
+    if (this.state.webview !== nextState.webview) {
       // Log console.logs from webview
       nextState.webview.addEventListener('console-message', (e) => {
         console.log('[DAPP]', e.message);
+      });
+      nextState.webview.addEventListener('did-finish-load', function (e) {
+        // Transfer events to shellMiddleware
+        // TODO This is hacky
+        DappRequestsStore.get().setIpcListener(nextState.webview);
+        nextState.webview.send('ping');
       });
     }
   }
@@ -145,6 +152,7 @@ export default class Dapp extends Component {
 
     return (
       <webview
+        nodeintegration='true'
         preload={ `file:///Users/amaurymartiny/Workspace/parity/js/.build/inject.js` }
         ref={ (ref) => { if (!this.state.webview) { this.setState({ webview: ref }); } } }
         src={ `${src}${hash}` }

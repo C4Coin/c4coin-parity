@@ -18,17 +18,19 @@ import Api from '@parity/api';
 import qs from 'query-string';
 import Web3 from 'web3';
 
+import IpcProvider from './ipcProvider';
+
 function initProvider () {
   const path = window.location.pathname.split('/');
   const query = qs.parse(window.location.search);
 
-  let appId = path[1] || query.appId;
+  let appId = path[path.length - 2] || query.appId;
 
   if (appId === 'dapps') {
-    appId = path[2];
+    appId = path[path.length - 1];
   }
 
-  const ethereum = new Api.Provider.PostMessage(appId);
+  const ethereum = new IpcProvider(appId);
 
   console.log(`Requesting API communications token for ${appId}`);
 

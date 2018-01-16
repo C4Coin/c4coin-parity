@@ -35,7 +35,8 @@ export default class Store {
     this.provider = provider;
     this.permissions = store.get(LS_PERMISSIONS) || {};
 
-    window.addEventListener('message', this.receiveMessage, false);
+    // With IPC we don't need the following line
+    // window.addEventListener('message', this.receiveMessage, false);
   }
 
   @computed get hasRequests () {
@@ -112,7 +113,7 @@ export default class Store {
       return;
     }
 
-    source.postMessage(
+    this.webview.send('PARITY_IPC_CHANNEL',
       {
         error: `Method ${method} not allowed`,
         id,
@@ -179,22 +180,24 @@ export default class Store {
 
   _methodCallbackPost = (id, from, source, token) => {
     return (error, result) => {
-      if (!source) {
-        return;
-      }
-      source.postMessage(
-        {
-          error: error ? error.message : null,
-          id,
-          from: 'shell',
-          to: from,
-          result,
-          token
-        },
-        '*'
-      );
+      this.webview.send('PARITY_IPC_CHANNEL', {
+        error: error ? error.message : null,
+        id,
+        from: 'shell',
+        to: from,
+        result,
+        token
+      });
     };
   };
+
+  setIpcListener = (webview) => {
+    this.webview = webview;
+    // Listen to IPC messages from webview
+    webview.addEventListener('ipc-message', (event) => {
+      this.receiveMessage(...event.args);
+    });
+  }
 
   executePubsubCall = ({ api, id, from, token, params }, source) => {
     const callback = this._methodCallbackPost(id, from, source, token);
@@ -213,12 +216,11 @@ export default class Store {
         } catch (error) {
           console.error(`Middleware error handling '${method}'`, error);
         }
-
         return false;
       });
 
       if (!isHandled) {
-        this.provider.send(method, params, callback);
+        this.webview.send('PARITY_IPC_CHANNEL', method, params, callback);
       }
     } catch (error) {
       console.error(`Execution error handling '${method}'`, error);
