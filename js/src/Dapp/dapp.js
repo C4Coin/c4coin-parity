@@ -41,8 +41,7 @@ export default class Dapp extends Component {
 
   state = {
     app: null,
-    loading: true,
-    webview: null
+    loading: true
   };
 
   store = DappsStore.get(this.context.api);
@@ -58,26 +57,27 @@ export default class Dapp extends Component {
     this.loadApp(id);
   }
 
-  componentWillUpdate (_, nextState) {
-    if (this.state.webview !== nextState.webview) {
-      // Log console.logs from webview
-      nextState.webview.addEventListener('console-message', (e) => {
-        console.log('[DAPP]', e.message);
-      });
-      nextState.webview.addEventListener('did-finish-load', function (e) {
-        // Transfer events to shellMiddleware
-        // TODO This is hacky
-        DappRequestsStore.get().setIpcListener(nextState.webview);
-        nextState.webview.send('ping');
-      });
-    }
-  }
-
   componentWillReceiveProps (nextProps) {
     if (nextProps.params.id !== this.props.params.id) {
       this.loadApp(nextProps.params.id);
     }
   }
+
+  handleRef = ref => {
+    if (!ref) { return; }
+
+    // Log console.logs from webview
+    ref.addEventListener('console-message', (e) => {
+      console.log('[DAPP]', e.message);
+    });
+
+    ref.addEventListener('did-finish-load', (e) => {
+      // Transfer messages to shellMiddleware
+      // TODO This is hacky
+      DappRequestsStore.get().setIpcListener(ref);
+      ref.send('ping');
+    });
+  };
 
   loadApp (id) {
     this.setState({ loading: true });
@@ -154,7 +154,7 @@ export default class Dapp extends Component {
       <webview
         nodeintegration='true'
         preload={ `file:///Users/amaurymartiny/Workspace/parity/js/.build/inject.js` }
-        ref={ (ref) => { if (!this.state.webview) { this.setState({ webview: ref }); } } }
+        ref={ this.handleRef }
         src={ `${src}${hash}` }
         style={ { width: '100%' } }
       />
