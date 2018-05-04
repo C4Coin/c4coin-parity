@@ -16,7 +16,7 @@
 
 //! Engine deserialization.
 
-use super::{Ethash, BasicAuthority, AuthorityRound, Tendermint, NullEngine};
+use super::{Ethash, BasicAuthority, AuthorityRound, Tendermint, NullEngine, Gelt};
 
 /// Engine deserialization.
 #[derive(Debug, PartialEq, Deserialize)]
@@ -37,7 +37,10 @@ pub enum Engine {
 	AuthorityRound(AuthorityRound),
 	/// Tendermint engine.
 	#[serde(rename="tendermint")]
-	Tendermint(Tendermint)
+	Tendermint(Tendermint),
+	/// Gelt engine.
+	#[serde(rename="gelt")]
+	Gelt(Gelt)
 }
 
 #[cfg(test)]
@@ -140,6 +143,20 @@ mod tests {
 			Engine::Tendermint(_) => {}, // Tendermint is unit tested in its own file.
 			_ => panic!(),
 		};
+
+		let s = r#"{
+			"gelt": {
+				"params": {
+					"validators": {
+						"list": ["0xc6d9d2cd449a754c494264e1809c50e34d64562b"]
+					}
+				}
+			}
+		}"#;
+		let deserialized: Engine = serde_json::from_str(s).unwrap();
+		match deserialized {
+			Engine::Gelt(_) => {}, // Gelt is unit tested in its own file.
+			_ => panic!(),
+		};
 	}
 }
-
