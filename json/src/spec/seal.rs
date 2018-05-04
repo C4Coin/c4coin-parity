@@ -75,7 +75,7 @@ pub enum Seal {
 	Tendermint(TendermintSeal),
 	/// Gelt seal.
 	#[serde(rename="gelt")]
-	Gelt(Gelt),
+	Gelt(GeltSeal),
 	/// Generic seal.
 	#[serde(rename="generic")]
 	Generic(Bytes),
