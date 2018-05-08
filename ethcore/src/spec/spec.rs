@@ -33,7 +33,7 @@ use vm::{EnvInfo, CallType, ActionValue, ActionParams, ParamsType};
 
 use builtin::Builtin;
 use encoded;
-use engines::{EthEngine, NullEngine, InstantSeal, BasicAuthority, AuthorityRound, Tendermint, DEFAULT_BLOCKHASH_CONTRACT};
+use engines::{EthEngine, NullEngine, InstantSeal, BasicAuthority, AuthorityRound, Tendermint, Gelt, DEFAULT_BLOCKHASH_CONTRACT};
 use error::Error;
 use executive::Executive;
 use factory::Factories;
@@ -527,6 +527,8 @@ impl Spec {
 				.expect("Failed to start AuthorityRound consensus engine."),
 			ethjson::spec::Engine::Tendermint(tendermint) => Tendermint::new(tendermint.params.into(), machine)
 				.expect("Failed to start the Tendermint consensus engine."),
+			ethjson::spec::Engine::Gelt(gelt) => Gelt::new(gelt.params.into(), machine)
+				.expect("Failed to start the Gelt consensus engine."),
 		}
 	}
 
@@ -865,6 +867,13 @@ impl Spec {
 	/// Account keccak("0") and keccak("1") are a authorities.
 	pub fn new_test_tendermint() -> Self {
 		load_bundled!("tendermint")
+	}
+
+	/// Create a new Spec with Gelt consensus which does internal sealing (not requiring
+	/// work).
+	/// Account keccak("0") and keccak("1") are a authorities.
+	pub fn new_test_gelt() -> Self {
+		load_bundled!("gelt")
 	}
 
 	/// TestList.sol used in both specs: https://github.com/paritytech/contracts/pull/30/files

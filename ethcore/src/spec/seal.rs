@@ -54,6 +54,16 @@ pub struct Tendermint {
 	pub precommits: Vec<H520>,
 }
 
+/// Gelt seal.
+pub struct Gelt {
+	/// Seal round.
+	pub round: usize,
+	/// Proposal seal signature.
+	pub proposal: H520,
+	/// Precommit seal signatures.
+	pub precommits: Vec<H520>,
+}
+
 impl Into<Generic> for AuthorityRound {
 	fn into(self) -> Generic {
 		let mut s = RlpStream::new_list(2);
@@ -73,6 +83,18 @@ impl Into<Generic> for Tendermint {
 	}
 }
 
+impl Into<Generic> for Gelt {
+	fn into(self) -> Generic {
+		let mut stream = RlpStream::new_list(3);
+		stream
+			.append(&self.round)
+			.append(&self.proposal)
+			.append_list(&self.precommits);
+		Generic(stream.out())
+	}
+}
+
+
 pub struct Generic(pub Vec<u8>);
 
 /// Genesis seal type.
@@ -83,6 +105,8 @@ pub enum Seal {
 	AuthorityRound(AuthorityRound),
 	/// Tendermint seal.
 	Tendermint(Tendermint),
+	/// Gelt seal.
+	Gelt(Gelt),
 	/// Generic RLP seal.
 	Generic(Generic),
 }
@@ -103,6 +127,11 @@ impl From<ethjson::spec::Seal> for Seal {
 				proposal: tender.proposal.into(),
 				precommits: tender.precommits.into_iter().map(Into::into).collect()
 			}),
+			ethjson::spec::Seal::Gelt(gelt) => Seal::Gelt(Gelt {
+				round: gelt.round.into(),
+				proposal: gelt.proposal.into(),
+				precommits: gelt.precommits.into_iter().map(Into::into).collect()
+			}),
 			ethjson::spec::Seal::Generic(g) => Seal::Generic(Generic(g.into())),
 		}
 	}
@@ -115,6 +144,7 @@ impl Into<Generic> for Seal {
 			Seal::Ethereum(eth) => eth.into(),
 			Seal::AuthorityRound(ar) => ar.into(),
 			Seal::Tendermint(tender) => tender.into(),
+			Seal::Gelt(gelt) => gelt.into(),
 		}
 	}
 }

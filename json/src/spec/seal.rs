@@ -50,6 +50,17 @@ pub struct TendermintSeal {
 	pub precommits: Vec<H520>,
 }
 
+/// Gelt seal.
+#[derive(Debug, PartialEq, Deserialize)]
+pub struct GeltSeal {
+	/// Seal round.
+	pub round: Uint,
+	/// Proposal seal signature.
+	pub proposal: H520,
+	/// Proposal seal signature.
+	pub precommits: Vec<H520>,
+}
+
 /// Seal variants.
 #[derive(Debug, PartialEq, Deserialize)]
 pub enum Seal {
@@ -62,6 +73,9 @@ pub enum Seal {
 	/// Tendermint seal.
 	#[serde(rename="tendermint")]
 	Tendermint(TendermintSeal),
+	/// Gelt seal.
+	#[serde(rename="gelt")]
+	Gelt(GeltSeal),
 	/// Generic seal.
 	#[serde(rename="generic")]
 	Generic(Bytes),
@@ -74,7 +88,7 @@ mod tests {
 	use bytes::Bytes;
 	use uint::Uint;
 	use ethereum_types::{U256, H64 as Eth64, H256 as Eth256, H520 as Eth520};
-	use spec::{Ethereum, AuthorityRoundSeal, TendermintSeal, Seal};
+	use spec::{Ethereum, AuthorityRoundSeal, TendermintSeal, GeltSeal, Seal};
 
 	#[test]
 	fn seal_deserialization() {
@@ -92,6 +106,14 @@ mod tests {
 			}
 		},{
 			"tendermint": {
+				"round": "0x3",
+				"proposal": "0x3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003",
+				"precommits": [
+					"0x4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004"
+				]
+			}
+		},{
+			"gelt": {
 				"round": "0x3",
 				"proposal": "0x3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003",
 				"precommits": [
@@ -122,6 +144,13 @@ mod tests {
 
 		// [3]
 		assert_eq!(deserialized[3], Seal::Tendermint(TendermintSeal {
+			round: Uint(U256::from(0x3)),
+			proposal: H520(Eth520::from("0x3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003")),
+			precommits: vec![H520(Eth520::from("0x4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004"))]
+		}));
+
+		// [4]
+		assert_eq!(deserialized[3], Seal::Gelt(GeltSeal {
 			round: Uint(U256::from(0x3)),
 			proposal: H520(Eth520::from("0x3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003")),
 			precommits: vec![H520(Eth520::from("0x4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004"))]
