@@ -5,3 +5,6 @@
 [submodule "ethcore/res/wasm-tests"]
 	path = ethcore/res/wasm-tests
 	url = https://github.com/paritytech/wasm-tests
+[submodule "validator-contracts"]
+	path = validator-contracts
+	url = https://github.com/c4coin/validator-contracts
