@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use serde::de::{Visitor, Error as SerdeError};
 use ethkey::{Public, Secret, Signature};
 use ethereum_types::{H160, H256};
 use bytes::Bytes;
-use types::all::Requester;
+use types::Requester;
 
 macro_rules! impl_bytes_deserialize {
 	($name: ident, $value: expr, true) => {
@@ -117,7 +117,7 @@ impl_bytes!(SerializableSignature, Signature, false, ());
 /// Serializable shadow decryption result.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SerializableEncryptedDocumentKeyShadow {
-	/// Decrypted secret point. It is partially decrypted if shadow decrpytion was requested.
+	/// Decrypted secret point. It is partially decrypted if shadow decryption was requested.
 	pub decrypted_secret: SerializablePublic,
 	/// Shared common point.
 	pub common_point: SerializablePublic,

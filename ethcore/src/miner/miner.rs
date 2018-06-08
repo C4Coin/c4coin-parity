@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -120,7 +120,6 @@ pub struct MinerOptions {
 	/// NOTE: Such block will contain all pending transactions but
 	/// will be invalid if mined.
 	pub infinite_pending_block: bool,
-
 
 	/// Strategy to use for prioritizing transactions in the queue.
 	pub tx_queue_strategy: PrioritizationStrategy,
@@ -290,10 +289,12 @@ impl Miner {
 	{
 		self.sealing.lock().queue
 			.peek_last_ref()
-			.and_then(|b| if b.block().header().number() > latest_block_number {
-				Some(f(b))
-			} else {
-				None
+			.and_then(|b| {
+				if b.block().header().number() > latest_block_number {
+					Some(f(b))
+				} else {
+					None
+				}
 			})
 	}
 
@@ -504,7 +505,6 @@ impl Miner {
 			|| self.engine.seals_internally() == Some(true)
 			|| had_requests;
 
-
 		let should_disable_sealing = !sealing_enabled;
 
 		trace!(target: "miner", "requires_reseal: should_disable_sealing={}; forced={:?}, has_local={:?}, internal={:?}, had_requests={:?}",
@@ -528,8 +528,8 @@ impl Miner {
 	}
 
 	/// Attempts to perform internal sealing (one that does not require work) and handles the result depending on the type of Seal.
-	fn seal_and_import_block_internally<C>(&self, chain: &C, block: ClosedBlock) -> bool where
-		C: BlockChain + SealedBlockImporter,
+	fn seal_and_import_block_internally<C>(&self, chain: &C, block: ClosedBlock) -> bool
+		where C: BlockChain + SealedBlockImporter,
 	{
 		{
 			let sealing = self.sealing.lock();
@@ -544,7 +544,12 @@ impl Miner {
 		trace!(target: "miner", "seal_block_internally: attempting internal seal.");
 
 		let parent_header = match chain.block_header(BlockId::Hash(*block.header().parent_hash())) {
-			Some(hdr) => hdr.decode(),
+			Some(h) => {
+				match h.decode() {
+					Ok(decoded_hdr) => decoded_hdr,
+					Err(_) => return false
+				}
+			}
 			None => return false,
 		};
 

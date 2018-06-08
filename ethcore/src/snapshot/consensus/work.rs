@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -229,7 +229,7 @@ impl Rebuilder for PowRebuilder {
 		let item_count = rlp.item_count()?;
 		let num_blocks = (item_count - 3) as u64;
 
-		trace!(target: "snapshot", "restoring block chunk with {} blocks.", item_count - 3);
+		trace!(target: "snapshot", "restoring block chunk with {} blocks.", num_blocks);
 
 		if self.fed_blocks + num_blocks > self.snapshot_blocks {
 			return Err(Error::TooManyBlocks(self.snapshot_blocks, self.fed_blocks + num_blocks).into())

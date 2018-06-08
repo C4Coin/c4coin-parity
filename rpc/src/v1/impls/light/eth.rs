@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -371,7 +371,7 @@ impl<T: LightChainClient + 'static> Eth for EthClient<T> {
 	}
 
 	fn send_raw_transaction(&self, raw: Bytes) -> Result<RpcH256> {
-		let best_header = self.client.best_block_header().decode();
+		let best_header = self.client.best_block_header().decode().map_err(errors::decode)?;
 
 		Rlp::new(&raw.into_vec()).as_val()
 			.map_err(errors::rlp)
@@ -538,7 +538,7 @@ impl<T: LightChainClient + 'static> Filterable for EthClient<T> {
 	}
 
 	fn logs(&self, filter: EthcoreFilter) -> BoxFuture<Vec<Log>> {
-		self.fetcher().logs(filter)
+		Box::new(self.fetcher().logs(filter)) as BoxFuture<_>
 	}
 
 	fn pending_logs(&self, _block_number: u64, _filter: &EthcoreFilter) -> Vec<Log> {

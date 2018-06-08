@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ use kvdb::KeyValueDB;
 use cache::Cache;
 use parking_lot::Mutex;
 
-use super::{ChainDataFetcher, Client, Config as ClientConfig};
+use super::{ChainDataFetcher, LightChainNotify, Client, Config as ClientConfig};
 
 /// Errors on service initialization.
 #[derive(Debug)]
@@ -84,6 +84,11 @@ impl<T: ChainDataFetcher> Service<T> {
 			client: client,
 			io_service: io_service,
 		})
+	}
+
+	/// Set the actor to be notified on certain chain events
+	pub fn add_notify(&self, notify: Arc<LightChainNotify>) {
+		self.client.add_listener(Arc::downgrade(&notify));
 	}
 
 	/// Register an I/O handler on the service.

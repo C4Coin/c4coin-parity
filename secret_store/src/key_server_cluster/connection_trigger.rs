@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ use ethkey::Public;
 use key_server_cluster::{KeyServerSet, KeyServerSetSnapshot};
 use key_server_cluster::cluster::{ClusterClient, ClusterConnectionsData};
 use key_server_cluster::cluster_sessions::AdminSession;
-use types::all::{Error, NodeId};
+use types::{Error, NodeId};
 use {NodeKeyPair};
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ use key_server_cluster::cluster_sessions::{AdminSession, ClusterSession};
 use key_server_cluster::jobs::servers_set_change_access_job::ordered_nodes_hash;
 use key_server_cluster::connection_trigger::{Maintain, ConnectionsAction, ConnectionTrigger,
 	ServersSetChangeSessionCreatorConnector, TriggerConnections};
-use types::all::{Error, NodeId};
+use types::{Error, NodeId};
 use {NodeKeyPair};
 
 /// Key servers set change trigger with automated migration procedure.

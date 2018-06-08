@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -107,7 +107,7 @@ impl JobExecutor for SchnorrSigningJob {
 	}
 
 	fn process_partial_request(&mut self, partial_request: SchnorrPartialSigningRequest) -> Result<JobPartialRequestAction<SchnorrPartialSigningResponse>, Error> {
-		let key_version = self.key_share.version(&self.key_version).map_err(|e| Error::KeyStorage(e.into()))?;
+		let key_version = self.key_share.version(&self.key_version)?;
 		if partial_request.other_nodes_ids.len() != self.key_share.threshold
 			|| partial_request.other_nodes_ids.contains(&self.self_node_id)
 			|| partial_request.other_nodes_ids.iter().any(|n| !key_version.id_numbers.contains_key(n)) {

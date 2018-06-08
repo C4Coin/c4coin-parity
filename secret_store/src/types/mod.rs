@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -16,4 +16,8 @@
 
 //! Types used in the public api
 
-pub mod all;
+mod all;
+mod error;
+
+pub use self::all::*;
+pub use self::error::*;

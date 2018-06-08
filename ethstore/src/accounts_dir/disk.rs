@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -152,7 +152,6 @@ impl<T> DiskDirectory<T> where T: KeyFileManager {
 			.collect()
 		)
 	}
-
 
 	/// insert account with given filename. if the filename is a duplicate of any stored account and dedup is set to
 	/// true, a random suffix is appended to the filename.
@@ -319,7 +318,7 @@ mod test {
 
 		// when
 		let account = SafeAccount::create(&keypair, [0u8; 16], password, 1024, "Test".to_owned(), "{}".to_owned());
-		let res = directory.insert(account);
+		let res = directory.insert(account.unwrap());
 
 		// then
 		assert!(res.is_ok(), "Should save account succesfuly.");
@@ -339,7 +338,7 @@ mod test {
 		let directory = RootDiskDirectory::create(dir.clone()).unwrap();
 
 		// when
-		let account = SafeAccount::create(&keypair, [0u8; 16], password, 1024, "Test".to_owned(), "{}".to_owned());
+		let account = SafeAccount::create(&keypair, [0u8; 16], password, 1024, "Test".to_owned(), "{}".to_owned()).unwrap();
 		let filename = "test".to_string();
 		let dedup = true;
 
@@ -424,7 +423,7 @@ mod test {
 		let keypair = Random.generate().unwrap();
 		let password = "test pass";
 		let account = SafeAccount::create(&keypair, [0u8; 16], password, 1024, "Test".to_owned(), "{}".to_owned());
-		directory.insert(account).expect("Account should be inserted ok");
+		directory.insert(account.unwrap()).expect("Account should be inserted ok");
 
 		let new_hash = directory.files_hash().expect("New files hash should be calculated ok");
 

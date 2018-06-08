@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -75,7 +75,7 @@ impl StateProducer {
 
 		// sweep once to alter storage tries.
 		for &mut (ref mut address_hash, ref mut account_data) in &mut accounts_to_modify {
-			let mut account: BasicAccount = ::rlp::decode(&*account_data);
+			let mut account: BasicAccount = ::rlp::decode(&*account_data).expect("error decoding basic account");
 			let acct_db = AccountDBMut::from_hash(db, *address_hash);
 			fill_storage(acct_db, &mut account.storage_root, &mut self.storage_seed);
 			*account_data = DBValue::from_vec(::rlp::encode(&account).into_vec());

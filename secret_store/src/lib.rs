@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -76,7 +76,7 @@ use ethcore::client::Client;
 use ethcore::miner::Miner;
 use sync::SyncProvider;
 
-pub use types::all::{ServerKeyId, EncryptedDocumentKey, RequestSignature, Public,
+pub use types::{ServerKeyId, EncryptedDocumentKey, RequestSignature, Public,
 	Error, NodeAddress, ContractAddress, ServiceConfiguration, ClusterConfiguration};
 pub use traits::{NodeKeyPair, KeyServer};
 pub use self::node_key_pair::{PlainNodeKeyPair, KeyStoreNodeKeyPair};

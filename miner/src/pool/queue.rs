@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -23,7 +23,6 @@ use std::collections::BTreeMap;
 
 use ethereum_types::{H256, U256, Address};
 use parking_lot::RwLock;
-use rayon::prelude::*;
 use transaction;
 use txpool::{self, Verifier};
 
@@ -174,13 +173,19 @@ impl TransactionQueue {
 		transactions: Vec<verifier::Transaction>,
 	) -> Vec<Result<(), transaction::Error>> {
 		// Run verification
-		let _timer = ::trace_time::PerfTimer::new("queue::verifyAndImport");
+		let _timer = ::trace_time::PerfTimer::new("pool::verify_and_import");
 		let options = self.options.read().clone();
 
 		let verifier = verifier::Verifier::new(client, options, self.insertion_id.clone());
 		let results = transactions
-			.into_par_iter()
-			.map(|transaction| verifier.verify_transaction(transaction))
+			.into_iter()
+			.map(|transaction| {
+				if self.pool.read().find(&transaction.hash()).is_some() {
+					bail!(transaction::Error::AlreadyImported)
+				}
+
+				verifier.verify_transaction(transaction)
+			})
 			.map(|result| result.and_then(|verified| {
 				self.pool.write().import(verified)
 					.map(|_imported| ())
@@ -282,11 +287,11 @@ impl TransactionQueue {
 		// We want to clear stale transactions from the queue as well.
 		// (Transactions that are occuping the queue for a long time without being included)
 		let stale_id = {
-			let current_id = self.insertion_id.load(atomic::Ordering::Relaxed) as u64;
+			let current_id = self.insertion_id.load(atomic::Ordering::Relaxed);
 			// wait at least for half of the queue to be replaced
 			let gap = self.pool.read().options().max_count / 2;
 			// but never less than 100 transactions
-			let gap = cmp::max(100, gap) as u64;
+			let gap = cmp::max(100, gap);
 
 			current_id.checked_sub(gap)
 		};
@@ -411,7 +416,6 @@ impl TransactionQueue {
 		(pool.listener_mut().1).0.add(f);
 	}
 }
-
 
 fn convert_error(err: txpool::Error) -> transaction::Error {
 	use self::txpool::ErrorKind;

@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -19,10 +19,8 @@ use std::fmt;
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 use std::thread;
-use std::net::{TcpListener};
 
-use ansi_term::{Colour, Style};
-use ctrlc::CtrlC;
+use ansi_term::Colour;
 use ethcore::account_provider::{AccountProvider, AccountProviderSettings};
 use ethcore::client::{Client, Mode, DatabaseCompactionProfile, VMType, BlockChainClient, BlockInfo};
 use ethcore::ethstore::ethkey;
@@ -34,7 +32,6 @@ use ethcore_logger::{Config as LogConfig, RotatingLogger};
 use ethcore_service::ClientService;
 use sync::{self, SyncConfig};
 use miner::work_notify::WorkPoster;
-use fdlimit::raise_fd_limit;
 use futures_cpupool::CpuPool;
 use hash_fetch::{self, fetch};
 use informant::{Informant, LightNodeInformantData, FullNodeInformantData};
@@ -44,8 +41,7 @@ use miner::external::ExternalMiner;
 use node_filter::NodeFilter;
 use node_health;
 use parity_reactor::EventLoop;
-use parity_rpc::{NetworkSettings, informant, is_major_importing};
-use parking_lot::{Condvar, Mutex};
+use parity_rpc::{Origin, Metadata, NetworkSettings, informant, is_major_importing};
 use updater::{UpdatePolicy, Updater};
 use parity_version::version;
 use ethcore_private_tx::{ProviderConfig, EncryptorConfig, SecretStoreEncryptor};
@@ -60,12 +56,12 @@ use cache::CacheConfig;
 use user_defaults::UserDefaults;
 use dapps;
 use ipfs;
+use jsonrpc_core;
 use modules;
 use rpc;
 use rpc_apis;
 use secretstore;
 use signer;
-use url;
 use db;
 
 // how often to take periodic snapshots.
@@ -102,7 +98,6 @@ pub struct RunCmd {
 	pub network_id: Option<u64>,
 	pub warp_sync: bool,
 	pub warp_barrier: Option<u64>,
-	pub public_node: bool,
 	pub acc_conf: AccountsConfig,
 	pub gas_pricer_conf: GasPricerConfig,
 	pub miner_extras: MinerExtras,
@@ -117,13 +112,11 @@ pub struct RunCmd {
 	pub net_settings: NetworkSettings,
 	pub dapps_conf: dapps::Configuration,
 	pub ipfs_conf: ipfs::Configuration,
-	pub ui_conf: rpc::UiConfiguration,
 	pub secretstore_conf: secretstore::Configuration,
 	pub private_provider_conf: ProviderConfig,
 	pub private_encryptor_conf: EncryptorConfig,
 	pub private_tx_enabled: bool,
 	pub dapp: Option<String>,
-	pub ui: bool,
 	pub name: String,
 	pub custom_bootnodes: bool,
 	pub stratum: Option<stratum::Options>,
@@ -138,28 +131,6 @@ pub struct RunCmd {
 	pub no_hardcoded_sync: bool,
 }
 
-pub fn open_ui(ws_conf: &rpc::WsConfiguration, ui_conf: &rpc::UiConfiguration, logger_config: &LogConfig) -> Result<(), String> {
-	if !ui_conf.enabled {
-		return Err("Cannot use UI command with UI turned off.".into())
-	}
-
-	let token = signer::generate_token_and_url(ws_conf, ui_conf, logger_config)?;
-	// Open a browser
-	url::open(&token.url).map_err(|e| format!("{}", e))?;
-	// Print a message
-	println!("{}", token.message);
-	Ok(())
-}
-
-pub fn open_dapp(dapps_conf: &dapps::Configuration, rpc_conf: &rpc::HttpConfiguration, dapp: &str) -> Result<(), String> {
-	if !dapps_conf.enabled {
-		return Err("Cannot use DAPP command with Dapps turned off.".into())
-	}
-
-	let url = format!("http://{}:{}/{}/", rpc_conf.interface, rpc_conf.port, dapp);
-	url::open(&url).map_err(|e| format!("{}", e))?;
-	Ok(())
-}
 // node info fetcher for the local store.
 struct FullNodeInfo {
 	miner: Option<Arc<Miner>>, // TODO: only TXQ needed, just use that after decoupling.
@@ -212,7 +183,7 @@ fn execute_light_impl(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<Runnin
 	execute_upgrades(&cmd.dirs.base, &db_dirs, algorithm, &cmd.compaction)?;
 
 	// create dirs used by parity
-	cmd.dirs.create_dirs(cmd.dapps_conf.enabled, cmd.ui_conf.enabled, cmd.secretstore_conf.enabled)?;
+	cmd.dirs.create_dirs(cmd.dapps_conf.enabled, cmd.acc_conf.unlocked_accounts.len() == 0, cmd.secretstore_conf.enabled)?;
 
 	//print out running parity environment
 	print_running_environment(&spec.name, &cmd.dirs, &db_dirs, &cmd.dapps_conf);
@@ -350,13 +321,10 @@ fn execute_light_impl(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<Runnin
 			fetch: fetch.clone(),
 			pool: cpu_pool.clone(),
 			signer: signer_service.clone(),
-			ui_address: cmd.ui_conf.redirection_address(),
-			info_page_only: cmd.ui_conf.info_page_only,
 		})
 	};
 
 	let dapps_middleware = dapps::new(cmd.dapps_conf.clone(), dapps_deps.clone())?;
-	let ui_middleware = dapps::new_ui(cmd.ui_conf.enabled, dapps_deps)?;
 
 	// start RPCs
 	let dapps_service = dapps::service(&dapps_middleware);
@@ -396,10 +364,10 @@ fn execute_light_impl(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<Runnin
 	};
 
 	// start rpc servers
+	let rpc_direct = rpc::setup_apis(rpc_apis::ApiSet::All, &dependencies);
 	let ws_server = rpc::new_ws(cmd.ws_conf, &dependencies)?;
 	let http_server = rpc::new_http("HTTP JSON-RPC", "jsonrpc", cmd.http_conf.clone(), &dependencies, dapps_middleware)?;
 	let ipc_server = rpc::new_ipc(cmd.ipc_conf, &dependencies)?;
-	let ui_server = rpc::new_http("Parity Wallet (UI)", "ui", cmd.ui_conf.clone().into(), &dependencies, ui_middleware)?;
 
 	// the informant
 	let informant = Arc::new(Informant::new(
@@ -412,13 +380,16 @@ fn execute_light_impl(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<Runnin
 		Some(rpc_stats),
 		cmd.logger_config.color,
 	));
-
+	service.add_notify(informant.clone());
 	service.register_handler(informant.clone()).map_err(|_| "Unable to register informant handler".to_owned())?;
 
-	Ok(RunningClient::Light {
-		informant,
-		client,
-		keep_alive: Box::new((event_loop, service, ws_server, http_server, ipc_server, ui_server)),
+	Ok(RunningClient {
+		inner: RunningClientInner::Light {
+			rpc: rpc_direct,
+			informant,
+			client,
+			keep_alive: Box::new((event_loop, service, ws_server, http_server, ipc_server)),
+		}
 	})
 }
 
@@ -467,7 +438,7 @@ fn execute_impl<Cr, Rr>(cmd: RunCmd, logger: Arc<RotatingLogger>, on_client_rq: 
 	execute_upgrades(&cmd.dirs.base, &db_dirs, algorithm, &cmd.compaction)?;
 
 	// create dirs used by parity
-	cmd.dirs.create_dirs(cmd.dapps_conf.enabled, cmd.ui_conf.enabled, cmd.secretstore_conf.enabled)?;
+	cmd.dirs.create_dirs(cmd.dapps_conf.enabled, cmd.acc_conf.unlocked_accounts.len() == 0, cmd.secretstore_conf.enabled)?;
 
 	// run in daemon mode
 	if let Some(pid_file) = cmd.daemon {
@@ -743,11 +714,7 @@ fn execute_impl<Cr, Rr>(cmd: RunCmd, logger: Arc<RotatingLogger>, on_client_rq: 
 
 	// set up dependencies for rpc servers
 	let rpc_stats = Arc::new(informant::RpcStats::default());
-	let secret_store = match cmd.public_node {
-		true => None,
-		false => Some(account_provider.clone())
-	};
-
+	let secret_store = account_provider.clone();
 	let signer_service = Arc::new(signer::new_service(&cmd.ws_conf, &cmd.logger_config));
 
 	// the dapps server
@@ -783,12 +750,9 @@ fn execute_impl<Cr, Rr>(cmd: RunCmd, logger: Arc<RotatingLogger>, on_client_rq: 
 			fetch: fetch.clone(),
 			pool: cpu_pool.clone(),
 			signer: signer_service.clone(),
-			ui_address: cmd.ui_conf.redirection_address(),
-			info_page_only: cmd.ui_conf.info_page_only,
 		})
 	};
 	let dapps_middleware = dapps::new(cmd.dapps_conf.clone(), dapps_deps.clone())?;
-	let ui_middleware = dapps::new_ui(cmd.ui_conf.enabled, dapps_deps)?;
 
 	let dapps_service = dapps::service(&dapps_middleware);
 	let deps_for_rpc_apis = Arc::new(rpc_apis::FullDependencies {
@@ -830,11 +794,10 @@ fn execute_impl<Cr, Rr>(cmd: RunCmd, logger: Arc<RotatingLogger>, on_client_rq: 
 	};
 
 	// start rpc servers
+	let rpc_direct = rpc::setup_apis(rpc_apis::ApiSet::All, &dependencies);
 	let ws_server = rpc::new_ws(cmd.ws_conf.clone(), &dependencies)?;
 	let ipc_server = rpc::new_ipc(cmd.ipc_conf, &dependencies)?;
 	let http_server = rpc::new_http("HTTP JSON-RPC", "jsonrpc", cmd.http_conf.clone(), &dependencies, dapps_middleware)?;
-	// the ui server
-	let ui_server = rpc::new_http("UI WALLET", "ui", cmd.ui_conf.clone().into(), &dependencies, ui_middleware)?;
 
 	// secret store key server
 	let secretstore_deps = secretstore::Dependencies {
@@ -898,57 +861,87 @@ fn execute_impl<Cr, Rr>(cmd: RunCmd, logger: Arc<RotatingLogger>, on_client_rq: 
 		},
 	};
 
-	// start ui
-	if cmd.ui {
-		open_ui(&cmd.ws_conf, &cmd.ui_conf, &cmd.logger_config)?;
-	}
-
-	if let Some(dapp) = cmd.dapp {
-		open_dapp(&cmd.dapps_conf, &cmd.http_conf, &dapp)?;
-	}
-
 	client.set_exit_handler(on_client_rq);
 	updater.set_exit_handler(on_updater_rq);
 
-	Ok(RunningClient::Full {
-		informant,
-		client,
-		keep_alive: Box::new((watcher, service, updater, ws_server, http_server, ipc_server, ui_server, secretstore_key_server, ipfs_server, event_loop)),
+	Ok(RunningClient {
+		inner: RunningClientInner::Full {
+			rpc: rpc_direct,
+			informant,
+			client,
+			client_service: Arc::new(service),
+			keep_alive: Box::new((watcher, updater, ws_server, http_server, ipc_server, secretstore_key_server, ipfs_server, event_loop)),
+		}
 	})
 }
 
-enum RunningClient {
+/// Parity client currently executing in background threads.
+///
+/// Should be destroyed by calling `shutdown()`, otherwise execution will continue in the
+/// background.
+pub struct RunningClient {
+	inner: RunningClientInner,
+}
+
+enum RunningClientInner {
 	Light {
+		rpc: jsonrpc_core::MetaIoHandler<Metadata, informant::Middleware<rpc_apis::LightClientNotifier>>,
 		informant: Arc<Informant<LightNodeInformantData>>,
 		client: Arc<LightClient>,
 		keep_alive: Box<Any>,
 	},
 	Full {
+		rpc: jsonrpc_core::MetaIoHandler<Metadata, informant::Middleware<informant::ClientNotifier>>,
 		informant: Arc<Informant<FullNodeInformantData>>,
 		client: Arc<Client>,
+		client_service: Arc<ClientService>,
 		keep_alive: Box<Any>,
 	},
 }
 
 impl RunningClient {
-	fn shutdown(self) {
-		match self {
-			RunningClient::Light { informant, client, keep_alive } => {
+	/// Performs a synchronous RPC query.
+	/// Blocks execution until the result is ready.
+	pub fn rpc_query_sync(&self, request: &str) -> Option<String> {
+		let metadata = Metadata {
+			origin: Origin::CApi,
+			session: None,
+		};
+
+		match self.inner {
+			RunningClientInner::Light { ref rpc, .. } => {
+				rpc.handle_request_sync(request, metadata)
+			},
+			RunningClientInner::Full { ref rpc, .. } => {
+				rpc.handle_request_sync(request, metadata)
+			},
+		}
+	}
+
+	/// Shuts down the client.
+	pub fn shutdown(self) {
+		match self.inner {
+			RunningClientInner::Light { rpc, informant, client, keep_alive } => {
 				// Create a weak reference to the client so that we can wait on shutdown
 				// until it is dropped
 				let weak_client = Arc::downgrade(&client);
+				drop(rpc);
 				drop(keep_alive);
 				informant.shutdown();
 				drop(informant);
 				drop(client);
 				wait_for_drop(weak_client);
 			},
-			RunningClient::Full { informant, client, keep_alive } => {
+			RunningClientInner::Full { rpc, informant, client, client_service, keep_alive } => {
 				info!("Finishing work, please wait...");
 				// Create a weak reference to the client so that we can wait on shutdown
 				// until it is dropped
 				let weak_client = Arc::downgrade(&client);
+				// Shutdown and drop the ServiceClient
+				client_service.shutdown();
+				drop(client_service);
 				// drop this stuff as soon as exit detected.
+				drop(rpc);
 				drop(keep_alive);
 				// to make sure timer does not spawn requests while shutdown is in progress
 				informant.shutdown();
@@ -961,51 +954,24 @@ impl RunningClient {
 	}
 }
 
-pub fn execute(cmd: RunCmd, can_restart: bool, logger: Arc<RotatingLogger>) -> Result<(bool, Option<String>), String> {
-	if cmd.ui_conf.enabled && !cmd.ui_conf.info_page_only {
-		warn!("{}", Style::new().bold().paint("Parity browser interface is deprecated. It's going to be removed in the next version, use standalone Parity UI instead."));
-		warn!("{}", Style::new().bold().paint("Standalone Parity UI: https://github.com/Parity-JS/shell/releases"));
-	}
-
-	if cmd.ui && cmd.dapps_conf.enabled {
-		// Check if Parity is already running
-		let addr = format!("{}:{}", cmd.ui_conf.interface, cmd.ui_conf.port);
-		if !TcpListener::bind(&addr as &str).is_ok() {
-			return open_ui(&cmd.ws_conf, &cmd.ui_conf, &cmd.logger_config).map(|_| (false, None));
-		}
-	}
-
-	// increase max number of open files
-	raise_fd_limit();
-
-	let exit = Arc::new((Mutex::new((false, None)), Condvar::new()));
-
-	let running_client = if cmd.light {
-		execute_light_impl(cmd, logger)?
-	} else if can_restart {
-		let e1 = exit.clone();
-		let e2 = exit.clone();
-		execute_impl(cmd, logger,
-					 move |new_chain: String| { *e1.0.lock() = (true, Some(new_chain)); e1.1.notify_all(); },
-					 move || { *e2.0.lock() = (true, None); e2.1.notify_all(); })?
+/// Executes the given run command.
+///
+/// `on_client_rq` is the action to perform when the client receives an RPC request to be restarted
+/// with a different chain.
+///
+/// `on_updater_rq` is the action to perform when the updater has a new binary to execute.
+///
+/// On error, returns what to print on stderr.
+pub fn execute<Cr, Rr>(cmd: RunCmd, logger: Arc<RotatingLogger>,
+						on_client_rq: Cr, on_updater_rq: Rr) -> Result<RunningClient, String>
+	where Cr: Fn(String) + 'static + Send,
+		  Rr: Fn() + 'static + Send
+{
+	if cmd.light {
+		execute_light_impl(cmd, logger)
 	} else {
-		trace!(target: "mode", "Not hypervised: not setting exit handlers.");
-		execute_impl(cmd, logger, move |_| {}, move || {})?
-	};
-
-	// Handle possible exits
-	CtrlC::set_handler({
-		let e = exit.clone();
-		move || { e.1.notify_all(); }
-	});
-
-	// Wait for signal
-	let mut l = exit.0.lock();
-	let _ = exit.1.wait(&mut l);
-
-	running_client.shutdown();
-
-	Ok(l.clone())
+		execute_impl(cmd, logger, on_client_rq, on_updater_rq)
+	}
 }
 
 #[cfg(not(windows))]

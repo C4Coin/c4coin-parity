@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -130,12 +130,16 @@ fn guards_delete_folders() {
 	service.init_restore(manifest.clone(), true).unwrap();
 	assert!(path.exists());
 
+	// The `db` folder should have been deleted,
+	// while the `temp` one kept
 	service.abort_restore();
-	assert!(!path.exists());
+	assert!(!path.join("db").exists());
+	assert!(path.join("temp").exists());
 
 	service.init_restore(manifest.clone(), true).unwrap();
 	assert!(path.exists());
 
 	drop(service);
-	assert!(!path.exists());
+	assert!(!path.join("db").exists());
+	assert!(path.join("temp").exists());
 }

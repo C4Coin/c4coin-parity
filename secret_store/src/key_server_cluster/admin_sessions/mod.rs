@@ -1,4 +1,4 @@
-// Copyright 2015-2017 Parity Technologies (UK) Ltd.
+// Copyright 2015-2018 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -32,6 +32,10 @@ pub struct ShareChangeSessionMeta {
 	pub master_node_id: NodeId,
 	/// Id of node, on which this session is running.
 	pub self_node_id: NodeId,
+	/// Count of all configured key server nodes.
+	pub configured_nodes_count: usize,
+	/// Count of all connected key server nodes.
+	pub connected_nodes_count: usize,
 }
 
 impl ShareChangeSessionMeta {
@@ -42,6 +46,8 @@ impl ShareChangeSessionMeta {
 			master_node_id: self.master_node_id,
 			self_node_id: self.self_node_id,
 			threshold: all_nodes_set_len.checked_sub(1).ok_or(Error::ConsensusUnreachable)?,
+			configured_nodes_count: self.configured_nodes_count,
+			connected_nodes_count: self.connected_nodes_count,
 		})
 	}
 }
