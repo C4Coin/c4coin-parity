@@ -130,6 +130,7 @@ impl <F> super::EpochVerifier<EthereumMachine> for EpochVerifier<F>
 
 		let n = addresses.len();
 		let threshold = self.subchain_validators.len() * 2/3;
+
 		if n > threshold {
 			Ok(())
 		} else {
@@ -183,7 +184,6 @@ impl Gelt {
 				block_reward: our_params.block_reward,
 				machine: machine,
 			});
-
 		let handler = TransitionHandler::new(Arc::downgrade(&engine) as Weak<Engine<_>>, Box::new(our_params.timeouts));
 		engine.step_service.register_handler(Arc::new(handler))?;
 
@@ -789,6 +789,13 @@ mod tests {
 		(spec, tap)
 	}
 
+	/// Accounts inserted with "0" and "1" are validators. First proposer is "0". Uses a validator contract.
+	fn setup_contract() -> (Spec, Arc<AccountProvider>) {
+		let tap = Arc::new(AccountProvider::transient_provider());
+		let spec = Spec::new_test_gelt_contract();
+		(spec, tap)
+	}
+
 	fn propose_default(spec: &Spec, proposer: Address) -> (ClosedBlock, Vec<Bytes>) {
 		let db = get_temp_state_db();
 		let db = spec.ensure_db_good(db, &Default::default()).unwrap();
@@ -1053,6 +1060,54 @@ mod tests {
 	}
 
 	#[test]
+	fn contract_seal_submission() {
+		use ethkey::{Generator, Random};
+		use transaction::{Transaction, Action};
+
+		let tap = Arc::new(AccountProvider::transient_provider());
+		// Accounts for signing votes.
+		let v0 = insert_and_unlock(&tap, "0");
+		let v1 = insert_and_unlock(&tap, "1");
+		let client = generate_dummy_client_with_spec_and_accounts(Spec::new_test_gelt_contract, Some(tap.clone()));
+		let engine = client.engine();
+
+		client.miner().set_author(v1.clone(), Some("1".into())).unwrap();
+
+		let notify = Arc::new(TestNotify::default());
+		client.add_notify(notify.clone());
+		engine.register_client(Arc::downgrade(&client) as _);
+
+		let keypair = Random.generate().unwrap();
+		let transaction = Transaction {
+			action: Action::Create,
+			value: U256::zero(),
+			data: "3331600055".from_hex().unwrap(),
+			gas: U256::from(100_000),
+			gas_price: U256::zero(),
+			nonce: U256::zero(),
+		}.sign(keypair.secret(), None);
+		client.miner().import_own_transaction(client.as_ref(), transaction.into()).unwrap();
+
+		// Propose
+		let proposal = Some(client.miner().pending_block(0).unwrap().header.bare_hash());
+		// Propose timeout
+		engine.step();
+
+		let h = 1;
+		let r = 0;
+
+		// Prevote.
+		vote(engine, |mh| tap.sign(v1, None, mh).map(H520::from), h, r, Step::Prevote, proposal);
+		vote(engine, |mh| tap.sign(v0, None, mh).map(H520::from), h, r, Step::Prevote, proposal);
+		vote(engine, |mh| tap.sign(v1, None, mh).map(H520::from), h, r, Step::Precommit, proposal);
+
+		assert_eq!(client.chain_info().best_block_number, 0);
+		// Last precommit.
+		vote(engine, |mh| tap.sign(v0, None, mh).map(H520::from), h, r, Step::Precommit, proposal);
+		assert_eq!(client.chain_info().best_block_number, 1);
+	}
+
+	#[test]
 	fn epoch_verifier_verify_light() {
 		use ethkey::Error as EthkeyError;
 
@@ -1101,6 +1156,78 @@ mod tests {
 		// One good signature is not enough.
 		match epoch_verifier.verify_light(&header) {
 			Err(Error(ErrorKind::Engine(EngineError::BadSealFieldSize(_)), _)) => {},
+			_ => panic!(),
+		}
+
+		seal[2] = ::rlp::encode_list(&vec![H520::from(signature1.clone()), H520::from(signature0.clone())]).into_vec();
+		header.set_seal(seal.clone());
+
+		assert!(epoch_verifier.verify_light(&header).is_ok());
+
+		let bad_voter = insert_and_unlock(&tap, "101");
+		let bad_signature = tap.sign(bad_voter, None, keccak(&vote_info)).unwrap();
+
+		seal[2] = ::rlp::encode_list(&vec![H520::from(signature1), H520::from(bad_signature)]).into_vec();
+		header.set_seal(seal);
+
+		// One good and one bad signature.
+		match epoch_verifier.verify_light(&header) {
+			Err(Error(ErrorKind::Ethkey(EthkeyError::InvalidSignature), _)) => {},
+			_ => panic!(),
+		};
+
+		engine.stop();
+	}
+
+	#[test]
+	fn contract_epoch_verifier_verify_light() {
+		use ethkey::Error as EthkeyError;
+
+		let (spec, tap) = setup_contract();
+		let engine = spec.engine;
+
+		let mut parent_header: Header = Header::default();
+		parent_header.set_gas_limit(U256::from_str("222222").unwrap());
+
+		let mut header = Header::default();
+		header.set_number(2);
+		header.set_gas_limit(U256::from_str("222222").unwrap());
+		let proposer = insert_and_unlock(&tap, "1");
+		header.set_author(proposer);
+		let mut seal = proposal_seal(&tap, &header, 0);
+
+		let vote_info = message_info_rlp(&VoteStep::new(2, 0, Step::Precommit), Some(header.bare_hash()));
+		let signature1 = tap.sign(proposer, None, keccak(&vote_info)).unwrap();
+
+		let voter = insert_and_unlock(&tap, "0");
+		let signature0 = tap.sign(voter, None, keccak(&vote_info)).unwrap();
+
+		seal[1] = ::rlp::NULL_RLP.to_vec();
+		seal[2] = ::rlp::encode_list(&vec![H520::from(signature1.clone())]).into_vec();
+		header.set_seal(seal.clone());
+
+		let epoch_verifier = super::EpochVerifier {
+			subchain_validators: SimpleList::new(vec![proposer.clone(), voter.clone()]),
+			recover: {
+				let signature1 = signature1.clone();
+				let signature0 = signature0.clone();
+				let proposer = proposer.clone();
+				let voter = voter.clone();
+				move |s: &Signature, _: &Message| {
+					if *s == signature1 {
+						Ok(proposer)
+					} else if *s == signature0 {
+						Ok(voter)
+					} else {
+						Err(ErrorKind::Ethkey(EthkeyError::InvalidSignature).into())
+					}
+				}
+			},
+		};
+
+		// One good signature is not enough.
+		match epoch_verifier.verify_light(&header) {
+			Err(Error(ErrorKind::Engine(EngineError::BadSealFieldSize(_)), _)) => { println!("Bad seal field size"); },
 			_ => panic!(),
 		}
 
