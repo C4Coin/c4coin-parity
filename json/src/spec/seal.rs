@@ -123,7 +123,7 @@ mod tests {
 		}]"#;
 
 		let deserialized: Vec<Seal> = serde_json::from_str(s).unwrap();
-		assert_eq!(deserialized.len(), 4);
+		assert_eq!(deserialized.len(), 5);
 
 		// [0]
 		assert_eq!(deserialized[0], Seal::Ethereum(Ethereum {
@@ -150,7 +150,7 @@ mod tests {
 		}));
 
 		// [4]
-		assert_eq!(deserialized[3], Seal::Gelt(GeltSeal {
+		assert_eq!(deserialized[4], Seal::Gelt(GeltSeal {
 			round: Uint(U256::from(0x3)),
 			proposal: H520(Eth520::from("0x3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003")),
 			precommits: vec![H520(Eth520::from("0x4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004"))]
