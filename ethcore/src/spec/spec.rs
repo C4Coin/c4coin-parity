@@ -914,7 +914,6 @@ impl Spec {
 		load_bundled!("gelt")
 	}
 
-<<<<<<< HEAD
 	/// Create a new Spec with Gelt consensus which does internal sealing (not requiring
 	/// work).
 	/// Account keccak("0") and keccak("1") are a authorities address 0x00...0009 is a validator contract.
@@ -922,8 +921,6 @@ impl Spec {
 		load_bundled!("gelt_contract")
 	}
 
-=======
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 	/// TestList.sol used in both specs: https://github.com/paritytech/contracts/pull/30/files
 	/// Accounts with secrets keccak("0") and keccak("1") are initially the validators.
 	/// Create a new Spec with BasicAuthority which uses a contract at address 5 to determine

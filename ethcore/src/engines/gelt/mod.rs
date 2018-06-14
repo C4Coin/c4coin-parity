@@ -35,20 +35,13 @@ use unexpected::{OutOfBounds, Mismatch};
 use client::EngineClient;
 use bytes::Bytes;
 use error::{Error, BlockError};
-<<<<<<< HEAD
 use header::{Header, BlockNumber, ExtendedHeader};
-=======
-use header::{Header, BlockNumber};
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 use rlp::Rlp;
 use ethkey::{self, Message, Signature};
 use account_provider::AccountProvider;
 use block::*;
 use engines::{Engine, Seal, EngineError, ConstructedVerifier};
-<<<<<<< HEAD
 use engines::block_reward::{self, RewardKind};
-=======
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 use io::IoService;
 use super::signer::EngineSigner;
 use super::validator_set::{ValidatorSet, SimpleList};
@@ -150,15 +143,10 @@ impl <F> super::EpochVerifier<EthereumMachine> for EpochVerifier<F>
 	}
 
 	fn check_finality_proof(&self, proof: &[u8]) -> Option<Vec<H256>> {
-<<<<<<< HEAD
 		match ::rlp::decode(proof) {
 			Ok(header) => self.verify_light(&header).ok().map(|_| vec![header.hash()]),
 			Err(_) => None // REVIEW: log perhaps? Not sure what the policy is.
 		}
-=======
-		let header: Header = ::rlp::decode(proof);
-		self.verify_light(&header).ok().map(|_| vec![header.hash()])
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 	}
 }
 
@@ -371,10 +359,6 @@ impl Gelt {
 			&& lock_change_view < self.view.load(AtomicOrdering::SeqCst)
 	}
 
-<<<<<<< HEAD
-=======
-
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 	fn has_enough_any_votes(&self) -> bool {
 		let step_votes = self.votes.count_round_votes(&VoteStep::new(self.height.load(AtomicOrdering::SeqCst), self.view.load(AtomicOrdering::SeqCst), *self.step.read()));
 		self.check_above_threshold(step_votes).is_ok()
@@ -545,11 +529,7 @@ impl Engine<EthereumMachine> for Gelt {
 		Ok(())
 	}
 
-<<<<<<< HEAD
 	fn on_new_block(&self, block: &mut ExecutedBlock, epoch_begin: bool, _ancestry: &mut Iterator<Item=ExtendedHeader>) -> Result<(), Error> {
-=======
-	fn on_new_block(&self, block: &mut ExecutedBlock, epoch_begin: bool) -> Result<(), Error> {
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 		if !epoch_begin { return Ok(()) }
 
 		// genesis is never a new block, but might as well check.
@@ -572,7 +552,6 @@ impl Engine<EthereumMachine> for Gelt {
 
 	/// Apply the block reward on finalisation of the block.
 	fn on_close_block(&self, block: &mut ExecutedBlock) -> Result<(), Error>{
-<<<<<<< HEAD
 		let author = *block.header().author();
 
 		block_reward::apply_block_rewards(
@@ -580,12 +559,6 @@ impl Engine<EthereumMachine> for Gelt {
 			block,
 			&self.machine,
 		)
-=======
-		use parity_machine::WithBalances;
-		let author = *block.header().author();
-		self.machine.add_balance(block, &author, &self.block_reward)?;
-		self.machine.note_rewards(block, &[(author, self.block_reward)], &[])
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 	}
 
 	fn verify_local_seal(&self, _header: &Header) -> Result<(), Error> {
@@ -653,11 +626,7 @@ impl Engine<EthereumMachine> for Gelt {
 	}
 
 	fn signals_epoch_end(&self, header: &Header, aux: AuxiliaryData)
-<<<<<<< HEAD
 						 -> super::EpochChange<EthereumMachine>
-=======
-		-> super::EpochChange<EthereumMachine>
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 	{
 		let first = header.number() == 0;
 		self.validators.signals_epoch_end(first, header, aux)
@@ -795,13 +764,10 @@ impl Engine<EthereumMachine> for Gelt {
 		*self.client.write() = Some(client.clone());
 		self.validators.register_client(client);
 	}
-<<<<<<< HEAD
 
 	fn fork_choice(&self, new: &ExtendedHeader, current: &ExtendedHeader) -> super::ForkChoice {
 		super::total_difficulty_fork_choice(new, current)
 	}
-=======
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 }
 
 #[cfg(test)]
@@ -832,7 +798,6 @@ mod tests {
 		(spec, tap)
 	}
 
-<<<<<<< HEAD
 	/// Accounts inserted with "0" and "1" are validators. First proposer is "0". Uses a validator contract.
 	fn setup_contract() -> (Spec, Arc<AccountProvider>) {
 		let tap = Arc::new(AccountProvider::transient_provider());
@@ -840,18 +805,12 @@ mod tests {
 		(spec, tap)
 	}
 
-=======
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 	fn propose_default(spec: &Spec, proposer: Address) -> (ClosedBlock, Vec<Bytes>) {
 		let db = get_temp_state_db();
 		let db = spec.ensure_db_good(db, &Default::default()).unwrap();
 		let genesis_header = spec.genesis_header();
 		let last_hashes = Arc::new(vec![genesis_header.hash()]);
-<<<<<<< HEAD
 		let b = OpenBlock::new(spec.engine.as_ref(), Default::default(), false, db.boxed_clone(), &genesis_header, last_hashes, proposer, (3141562.into(), 31415620.into()), vec![], false, &mut Vec::new().into_iter()).unwrap();
-=======
-		let b = OpenBlock::new(spec.engine.as_ref(), Default::default(), false, db.boxed_clone(), &genesis_header, last_hashes, proposer, (3141562.into(), 31415620.into()), vec![], false).unwrap();
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 		let b = b.close();
 		if let Seal::Proposal(seal) = spec.engine.generate_seal(b.block(), &genesis_header) {
 			(b, seal)
@@ -1110,7 +1069,6 @@ mod tests {
 	}
 
 	#[test]
-<<<<<<< HEAD
 	fn contract_seal_submission() {
 		use ethkey::{Generator, Random};
 		use transaction::{Transaction, Action};
@@ -1159,8 +1117,6 @@ mod tests {
 	}
 
 	#[test]
-=======
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 	fn epoch_verifier_verify_light() {
 		use ethkey::Error as EthkeyError;
 
@@ -1231,7 +1187,6 @@ mod tests {
 
 		engine.stop();
 	}
-<<<<<<< HEAD
 
 	#[test]
 	fn contract_epoch_verifier_verify_light() {
@@ -1304,6 +1259,4 @@ mod tests {
 
 		engine.stop();
 	}
-=======
->>>>>>> Replicating Tendermint as Gelt Engine.  Changes in ethcore/res, ethcore/src/engines, ethcore/sync and json related to engines, spec serialization and tests
 }
